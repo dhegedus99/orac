@@ -9,6 +9,8 @@ include $(ORAC_ARCH)
 
 ORAC_COMMON = ../../common
 
+ORAC_PREPROC = ../../pre_processing
+
 
 # Define object files to be linked.
 ORAC_OBJ = $(OBJS)/kinds.o \
@@ -59,11 +61,11 @@ ORAC_OBJ_MAIN = $(OBJS)/process_broadband_fluxes.o
 
 
 # Compilation rules
-$(OBJS)/%.o: %.f90 $(ORAC_COMMON)/liborac_common.a
-	$(F90) -o $@ -c $(FFLAGS) $(INC) -I$(ORAC_COMMON)/obj $(AUXFLAGS) $<
+$(OBJS)/%.o: %.f90 $(ORAC_COMMON)/liborac_common.a $(ORAC_PREPROC)/libpreproc.a
+	$(F90) -o $@ -c $(FFLAGS) $(INC) -I$(ORAC_COMMON)/obj -I$(ORAC_PREPROC)/obj $(AUXFLAGS) $<
 
-$(OBJS)/%.o: %.F90 $(ORAC_COMMON)/liborac_common.a
-	$(F90) -o $@ -c $(FFLAGS) $(INC) -I$(ORAC_COMMON)/obj $(AUXFLAGS) $<
+$(OBJS)/%.o: %.F90 $(ORAC_COMMON)/liborac_common.a $(ORAC_PREPROC)/libpreproc.a
+	$(F90) -o $@ -c $(FFLAGS) $(INC) -I$(ORAC_COMMON)/obj -I$(ORAC_PREPROC)/obj $(AUXFLAGS) $<
 
 $(OBJS)/%.o: bugsrad/%.f $(ORAC_COMMON)/liborac_common.a
 	$(F77) -o $@ -c $(F77FLAGS) $(INC) -I$(ORAC_COMMON)/obj $(AUXFLAGS) $<

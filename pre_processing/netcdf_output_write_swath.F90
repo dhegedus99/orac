@@ -111,6 +111,13 @@ subroutine netcdf_output_write_swath(imager_flags,imager_angles, &
         netcdf_info%vid_msi_ch_swflag_config, &
         channel_info%channel_sw_flag, &
         1, 1, channel_info%nchannels_total)
+   
+   call ncdf_write_array( &
+        netcdf_info%ncid_config, &
+        'msi_ch_modisref', &
+        netcdf_info%vid_msi_ch_modisref_config, &
+        channel_info%map_ids_abs_to_ref_band_land, &
+        1, 1, channel_info%nchannels_total)
 
    call ncdf_write_array( &
         netcdf_info%ncid_config, &
