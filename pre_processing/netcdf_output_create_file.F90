@@ -1584,7 +1584,16 @@ subroutine netcdf_create_config(global_atts, source_atts, cyear, cmonth, cday, &
         netcdf_info%vid_msi_ch_lwflag_config, &
         verbose, &
         fill_value = lint_fill_value)
-
+        
+        
+   call ncdf_def_var_long_packed_long( &
+        netcdf_info%ncid_config, &
+        dimids_1d, &
+        'msi_ch_modisref', &
+        netcdf_info%vid_msi_ch_modisref_config, &
+        verbose, &
+        fill_value = lint_fill_value)
+        
    call ncdf_def_var_long_packed_long( &
         netcdf_info%ncid_config, &
         dimids_1d, &

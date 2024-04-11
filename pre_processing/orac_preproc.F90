@@ -1151,6 +1151,7 @@ subroutine orac_preproc(mytask, ntasks, lower_bound, upper_bound, driver_path_fi
 
 #else
 
+      write(*,*) 'modis reference', channel_info%map_ids_abs_to_ref_band_land
       ! write netcdf output files
       if (verbose) write(*,*) 'Write netcdf output files'
       call netcdf_output_write_swath(imager_flags, imager_angles, &
