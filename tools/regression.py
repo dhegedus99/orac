@@ -17,7 +17,7 @@ import pyorac.arguments as arguments
 from pyorac.colour_print import colour_print
 import pyorac.definitions as defin
 from pyorac.processing_settings import REGRESSION_TESTS
-from pyorac.run import process_all, run_regression
+from pyorac.run import process_all, process_flux, run_regression
 from pyorac.util import get_repository_revision, warning_format
 
 
@@ -35,6 +35,8 @@ arguments.args_cc4cl(pars)
 arguments.args_preproc(pars)
 arguments.args_main(pars)
 arguments.args_postproc(pars)
+arguments.args_fluxes(pars)
+
 orig_args = pars.parse_args()
 
 orig_args = arguments.check_args_regress(orig_args)
@@ -48,12 +50,10 @@ if orig_args.revision is None:
     if not orig_args.benchmark:
         orig_args.revision += 1
 
-
 try:
     for test in orig_args.tests:
         colour_print(test, defin.COLOURING['header'])
         args = deepcopy(orig_args)
-
         # Set filename to be processed and output folder
         args.out_dir = os.path.join(base_out_dir, test)
         try:
@@ -64,8 +64,9 @@ try:
         args.preset_settings += "_" + args.test_type
 
         jid, out_file = process_all(args)
+        
         log_path = os.path.join(args.out_dir, defaults.LOG_DIR)
-
+        jid, out_file = process_flux(args, log_path)
         # Check for regressions
         if not args.benchmark and not args.dry_run:
             inst = defin.FileName(args.out_dir, out_file)

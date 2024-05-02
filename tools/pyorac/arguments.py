@@ -33,7 +33,7 @@ def args_common(parser):
                      help='Channels to be evaluated.')
     key.add_argument('--batch', action='store_true',
                      help='Use batch processing for this call.')
-    key.add_argument('--batch_script', default=defaults.BATCH_SCRIPT,
+    key.add_argument('--batch_script', default=defaults.batch_script,
                      help='Execution script to use in batch processing.')
     key.add_argument('-b', '--batch_settings', type=str, nargs=2, default=[],
                      metavar=('KEY', 'VALUE'), action='append',
@@ -216,6 +216,30 @@ def args_postproc(parser):
                       help='With cloud processing, do not check if CTT is '
                            'appropriate for the selected type. Only relevant '
                            'when processing exclusively water and ice cloud.')
+                           
+def args_fluxes(parser):
+    """Define arguments for postprocessor script."""
+
+    flux = parser.add_argument_group('Flux paths')
+    flux.add_argument('--tsi', type=str, action="append", metavar='DIR',
+                     help='Path for TSI.')
+    
+    flux.add_argument('--flux_alg', type=int, nargs='1', choices=(1,2,3,4),
+                     default=1, help='BUGSrad: 1, FuLiou-2Stream Modified Gamma: 2, FuLiou-4stream: 3, FuLiou-2Stream: 4')
+    #flux.add_argument('-l', '--subset', type=int, nargs=4, default=(0, 0, 0, 0),
+    #                metavar=('X0', 'X1', 'Y0', 'Y1'))
+    flux.add_argument('--cci_aerpix', type=str, nargs='?', action="append", metavar='DIR',
+                     help='Path for aerosol product in primary file.')
+    flux.add_argument('--cci_aerosol', type=str, nargs='?', action="append", metavar='DIR',
+                     help='Path for v3.02 or v4.01 types.')
+    flux.add_argument('--cci_collocation', type=str, nargs='?', action="append", metavar='DIR',
+                     help='Path for cci collocation.')
+    flux.add_argument('--modis_aerosol', type=str, nargs='?', action="append", metavar='DIR',
+                     help='Path for MOD04 or MYD04 COLLECTION 6.')
+    flux.add_argument('--modis_cloud', type=str, nargs='?', action="append", metavar='DIR',
+                     help='Path for MOD06 or MYD06 COLLECTION 6.')
+    flux.add_argument('--LUT_mode', type=str, nargs='?', action="append", metavar='DIR',
+                     help='Path for LUT mode.')
 
 def args_fluxes(parser):
     """Define arguments for postprocessor script."""
@@ -575,5 +599,63 @@ def check_args_regress(args):
                           'DAYAATSRS', 'NITAATSRS', 'DAYAVHRRS', 'NITAVHRRS',
                           'DAYSLSTRAS', 'NITSLSTRAS', 'DAYSLSTRBS', 'NITSLSTRBS',
                           'DAYSEVIRIS', 'NITSEVIRIS']
+
+    return args
+
+def check_args_fluxes(args):
+    """Ensure main processor parser arguments are valid."""
+    
+    # Add global attributes
+    defaults.GLOBAL_ATTRIBUTES.update({key: val for key, val in args.global_att})
+    args.__dict__.update(defaults.GLOBAL_ATTRIBUTES)
+
+    # Insert auxilliary locations
+    defaults.AUXILIARIES.update({key: val for key, val in args.aux})
+    args.__dict__.update(defaults.AUXILIARIES)
+    
+    if len(args.in_dir) > 1:
+        warnings.warn('Flux processor ignores all but first in_dir.',
+                      OracWarning, stacklevel=2)
+    if not os.path.isdir(args.in_dir[0]):
+        raise FileMissing('Preprocessed directory', args.in_dir[0])
+    
+    if args.tsi is None:
+            args.tsi = '/gws/nopw/j04/nceo_generic/cloud_ecv/data_in/tsi_noaa_cdr_and_tsis_tim_1978-01-01_2022-07-16.nc'
+            
+    if args.flux_alg is None:
+            args.flux_alg = '1'
+    
+    if args.cci_aerpix:
+        if not os.path.isdir(args.cci_aerpix[0]):
+            raise FileMissing('Preprocessed directory with aerosol data', args.cci_aerpix[0])
+    elif args.cci_aerosol:
+        if not os.path.isdir(args.cci_aerosol[0]):
+            raise FileMissing('Preprocessed directory with aerosol data', args.cci_aerosol[0])
+    elif args.cci_collocation:
+        if not os.path.isdir(args.cci_collocation[0]):
+            raise FileMissing('Preprocessed directory with collocation data', args.cci_collocation[0])
+    elif args.modis_aerosol:
+        if not os.path.isdir(args.modis_aerosol[0]):
+            raise FileMissing('Modis aerosol data', args.modis_aerosol[0])
+    if args.modis_cloud:
+        if not os.path.isdir(args.modis_cloud[0]):
+            raise FileMissing('Modis cloud data', args.modis_cloud[0])
+    
+    if args.LUT_mode:
+        if not os.path.isdir(args.LUT_mode[0]):
+            raise FileMissing('Preprocessed directory with LUT mode', args.LUT_mode[0])
+
+            
+    # Update FileName class
+    if args.revision is not None:
+        args.File.revision = args.revision
+    if "processor" not in args.File.__dict__:
+        args.File.processor = args.processor
+    if "project" not in args.File.__dict__:
+        args.File.project = args.project
+    if "product_name" not in args.File.__dict__:
+        args.File.product_name = args.product_name
+            
+    
 
     return args
