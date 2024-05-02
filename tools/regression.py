@@ -11,18 +11,18 @@ from argparse import ArgumentParser
 from copy import deepcopy
 from subprocess import check_output, CalledProcessError
 from tempfile import mkstemp
-
+print(sys.path)
 import pyorac.local_defaults as defaults
 from pyorac.arguments import (args_common, args_regress, args_cc4cl,
                               args_preproc, args_main, args_postproc,
                               check_args_regress, check_args_common,
-                              check_args_preproc)
+                              check_args_preproc, args_fluxes)
 from pyorac.colour_print import colour_print
 from pyorac.definitions import (Acceptable, BadValue, COLOURING, FieldMissing,
                                 FileMissing, FileName, InconsistentDim,
                                 OracError, Regression, RoundingError)
 from pyorac.regression_tests import REGRESSION_TESTS
-from pyorac.run import process_all, run_regression
+from pyorac.run import process_all, process_flux, run_regression
 from pyorac.util import get_repository_revision, warning_format
 
 
@@ -40,10 +40,11 @@ args_cc4cl(pars)
 args_preproc(pars)
 args_main(pars)
 args_postproc(pars)
+args_fluxes(pars)
+
 orig_args = pars.parse_args()
 
 orig_args = check_args_regress(orig_args)
-
 base_out_dir = deepcopy(orig_args.out_dir)
 
 # Increment version number (as this is usually run on uncommited code)
@@ -53,12 +54,10 @@ if orig_args.revision is None:
     if not orig_args.benchmark:
         orig_args.revision += 1
 
-
 try:
     for test in orig_args.tests:
         colour_print(test, COLOURING['header'])
         args = deepcopy(orig_args)
-
         # Set filename to be processed and output folder
         args.out_dir = os.path.join(base_out_dir, test)
         try:
@@ -69,11 +68,13 @@ try:
         args.preset_settings += "_" + args.test_type
 
         jid, out_file = process_all(args)
+        
         log_path = os.path.join(args.out_dir, defaults.LOG_DIR)
-
+        jid, out_file = process_flux(args, log_path)
         # Check for regressions
         if not args.benchmark and not args.dry_run:
             inst = FileName(args.out_dir, out_file)
+            args.target = os.path.basename(args.target)
             if not args.batch:
                 args = check_args_common(args)
                 args = check_args_preproc(args)

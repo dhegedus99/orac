@@ -148,7 +148,6 @@ def build_preproc_driver(args):
     libs = read_orac_library_file(args.orac_lib)
     lib_list = extract_orac_libraries(libs)
     os.environ["LD_LIBRARY_PATH"] = build_orac_library_path(lib_list=lib_list)
-
     # Determine current time
     production_time = datetime.now().strftime("%Y%m%d%H%M%S")
 
@@ -160,7 +159,8 @@ def build_preproc_driver(args):
         except FileNotFoundError:
             continue
         except CalledProcessError:
-            raise OracError('ncdump is non-functional.')
+            #raise OracError('ncdump is non-functional.')
+            continue
 
         mat0 = search(r'netcdf library version (.+?) of', tmp0)
         if mat0:
@@ -320,14 +320,12 @@ EXT_GEO_PATH={args.pregeo_file}"""
 
     if args.product_name is not None:
         driver += f"\nPRODUCT_NAME={args.product_name}"
-
     return driver
 
 
 def build_main_driver(args):
     """Prepare a driver file for the main processor."""
     from pyorac.definitions import SETTINGS
-
     # Form mandatory driver file lines
     driver = """# ORAC New Driver File
 Ctrl%FID%Data_Dir           = "{in_dir}"
@@ -404,7 +402,6 @@ Ctrl%Class2                 = {}""".format(
     for sec, key, val in args.additional:
         if sec == "main":
             driver += f"\n{key} = {val}"
-
     return driver
 
 
@@ -472,6 +469,33 @@ USE_NEW_BAYESIAN_SELECTION={bayesian}""".format(
 
     return driver
 
+'''def build_flux_driver(args, files):
+    """Prepare a driver file for the postprocessor."""
+
+    # Form driver file
+    driver = """{pri} {prtm} {alb} {tsi_path} {conf} {out_flux} {flux_alg} {limit0} {limit1} {limit2} {limit3}""".format(
+        pri=files[0],
+        prtm=files[1],
+        alb=files[2],
+        conf=files[3],
+        out_flux=args.target,
+        tsi_path=args.tsi,
+        flux_alg=args.flux_alg,
+        limit0=args.limit[0],
+        limit1=args.limit[1],
+        limit2=args.limit[2],
+        limit3=args.limit[3],
+    )
+    
+    if args.cci_aerpix:
+        driver += "cci_aerpix= " + files[0]
+        
+    print('fluxes', driver)
+    
+    # add more optional arguments for driver file
+
+    return driver
+'''
 
 # -----------------------------------------------------------------------------
 

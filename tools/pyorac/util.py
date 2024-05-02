@@ -8,8 +8,127 @@ def build_orac_library_path(lib_dict=None, lib_list=None):
     if lib_list is None:
         lib_list = extract_orac_libraries(lib_dict)
 
-    libs = os.environ["LD_LIBRARY_PATH"].split(':') + lib_list
+    libs = lib_list
     return ':'.join(filter(None, libs))
+
+
+'''def call_exe_flux(args, exe, driver, values=None):
+    """Call an ORAC executable, managing the necessary driver file.
+
+    Args:
+    :list args: Arguments of the script.
+    :str exe: Name of the executable.
+    :str driver: Contents of the driver file to pass.
+    :dict values: Arguments for the batch queueing system."""
+    from pyorac.local_defaults import BATCH, BATCH_VALUES
+
+    from pyorac.colour_print import colour_print
+    from pyorac.definitions import OracError, COLOURING
+    from subprocess import check_call, check_output, CalledProcessError
+    from tempfile import mkstemp
+    from time import time
+    # Optionally print command and driver file contents to StdOut
+    if args.verbose or args.script_verbose or args.dry_run:
+        colour_print(exe + ' <<<', COLOURING['header'])
+        colour_print(driver, COLOURING['text'])
+
+    if args.dry_run:
+        return -1
+    print(driver)
+    # Write driver file
+    (fdes, driver_file) = mkstemp('.sh', os.path.basename(exe) + '.',
+                                  args.out_dir, True)
+    print(fdes, driver_file)
+    fhandle = os.fdopen(fdes, "w")
+    fhandle.write("#!/bin/bash\n")
+    fhandle.write(driver+'\n')
+    fhandle.write("rm -f "+driver_file+"\n")
+    fhandle.close()
+    print(driver_file)
+    if not args.batch:
+        # Form processing environment
+        env = dict(LD_LIBRARY_PATH=build_orac_library_path(),
+                   OPENBLAS_NUM_THREADS="1", OMP_NUM_THREADS=str(args.procs))
+        env["EMOSLIB_FILES"] = os.environ.get("EMOSLIB_FILES", "")
+        env["LOCAL_DEFINITION_TEMPLATES"] = os.environ.get("LOCAL_DEFINITION_TEMPLATES", "")
+        env["ECMWF_LOCAL_TABLE_PATH"] = os.environ.get("ECMWF_LOCAL_TABLE_PATH", "")
+        env["BUFR_TABLE"] = os.environ.get("BUFR_TABLE", "")
+        try:
+            # This is only defined for the preprocessor
+            env["PPDIR"] = args.emos_dir
+        except AttributeError:
+            pass
+
+        # Call program
+        try:
+            start_time = time()
+            check_call([exe, driver_file], env=env)
+            if args.timing:
+                colour_print(exe + ' took {:f}s'.format(time() - start_time),
+                             COLOURING['timing'])
+            return True
+        except CalledProcessError as err:
+            raise OracError('{:s} failed with error code {:d}. {}'.format(
+                ' '.join(err.cmd), err.returncode, err.output
+            ))
+        finally:
+            if not args.keep_driver:
+                os.remove(driver_file)
+            elif args.verbose or args.script_verbose:
+                print("Driver file stored at " + driver_file)
+        print('call exe')
+
+    else:
+        # Write temporary script to call executable
+        (gdes, script_file) = mkstemp('.sh', os.path.basename(exe) + '.',
+                                      args.out_dir, True)
+        ghandle = os.fdopen(gdes, "w")
+        ghandle.write(args.batch_script + "\n")
+
+        # Define processing environment
+        libs = read_orac_library_file(args.orac_lib)
+        ghandle.write("export LD_LIBRARY_PATH=" +
+                      build_orac_library_path(libs) + "\n")
+        ghandle.write("export OPENBLAS_NUM_THREADS=1\n")
+        try:
+            ghandle.write("export PPDIR=" + args.emos_dir + "\n")
+        except AttributeError:
+            pass
+        BATCH.add_openmp_to_script(ghandle)
+
+        # Call executable and give the script permission to execute
+        ghandle.write(exe + ' ' + driver_file + "\n")
+        if not args.keep_driver:
+            ghandle.write("rm -f " + driver_file + "\n")
+        ghandle.write("rm -f " + script_file + "\n")
+        ghandle.close()
+        os.chmod(script_file, 0o700)
+
+        try:
+            # Collect batch settings from defaults, command line, and script
+            batch_params = BATCH_VALUES.copy()
+            if values:
+                batch_params.update(values)
+            batch_params.update({key: val for key, val in args.batch_settings})
+
+            batch_params['procs'] = args.procs
+
+            # Form batch queue command and call batch queuing system
+            cmd = BATCH.list_batch(batch_params, exe=script_file)
+
+            if args.verbose or args.script_verbose:
+                colour_print(' '.join(cmd), COLOURING['header'])
+            out = check_output(cmd, universal_newlines=True)
+
+            # Parse job ID # and return it to the caller
+            jid = BATCH.parse_out(out, 'ID')
+            return jid
+        except CalledProcessError as err:
+            raise OracError('Failed to queue job ' + exe)
+        except SyntaxError as err:
+            raise OracError(str(err))
+        print('call exe')
+'''
 
 
 def call_exe(args, exe, driver, values=None):
@@ -27,7 +146,6 @@ def call_exe(args, exe, driver, values=None):
     from subprocess import check_call, check_output, CalledProcessError
     from tempfile import mkstemp
     from time import time
-
     # Optionally print command and driver file contents to StdOut
     if args.verbose or args.script_verbose or args.dry_run:
         colour_print(exe + ' <<<', COLOURING['header'])
@@ -35,14 +153,12 @@ def call_exe(args, exe, driver, values=None):
 
     if args.dry_run:
         return -1
-
     # Write driver file
     (fdes, driver_file) = mkstemp('.driver', os.path.basename(exe) + '.',
                                   args.out_dir, True)
     fhandle = os.fdopen(fdes, "w")
     fhandle.write(driver)
     fhandle.close()
-
     if not args.batch:
         # Form processing environment
         env = dict(LD_LIBRARY_PATH=build_orac_library_path(),
