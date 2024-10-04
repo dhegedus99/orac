@@ -17,7 +17,7 @@
      +,                radvdc ,radvdccl ,   radnbc , radnbccl
      +,                radndc ,radndccl ,sel_rules , boapar
      +,                boapardif, toapar,resat
-     +,                rho0d,rhodd)
+     +,                rho0d,rhodd, fdswdif)
 
 
       use kinds
@@ -484,13 +484,12 @@
           boapardif(1)= boapardif(1) +
      &                 (fdswdif(1,nlm)- boapardif(1)/0.746274)*0.032175
           toapar(1)=toapar(1)+
-     &                 (fdsw(1,nlm)   -    toapar(1)/0.746274)*0.032175
-          !print*,boapar,boapardif,toapar
+     &                 (fdsw(1,1)   -    toapar(1)/0.746274)*0.032175
+          
         end if
 
          end do ! end k-distribution
       end do ! end spectral interval
-
       return
       end subroutine bugs_swr
 
