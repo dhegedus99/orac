@@ -55,7 +55,7 @@ subroutine driver_for_bugsrad(nlm,tsi,theta, &
                               boapar,boapardif,toapar, &
                               fulw,fdlw,fusw,fdsw, &
                               fulwcl,fdlwcl,fuswcl,fdswcl, &
-                              emis,rho0d,rhodd,pxYEAR)
+                              emis,rho0d,rhodd,pxYEAR, boaswdndif)
 
    use kinds, only: int_kind, dbl_kind
    use bugsrad_physconst, only: gravity, cp_dry_air, sol_const
@@ -109,17 +109,18 @@ subroutine driver_for_bugsrad(nlm,tsi,theta, &
    real, intent(out) :: &
       toalwup   ,& ! All-sky TOA LW upwelling flux            (W/m2).
       toaswdn   ,& ! All-sky TOA SW upwelling flux            (W/m2).
-      toaswup   ,& ! All-sky TOA SW upwelling flux            (W/m2).
+      toaswup   ,& ! All-sky TOA SW downwelling flux          (W/m2).
       boalwup   ,& ! All-sky BOA LW upwelling flux            (W/m2).
-      boalwdn   ,& ! All-sky BOA LW upwelling flux            (W/m2).
-      boaswdn   ,& ! All-sky BOA SW upwelling flux            (W/m2).
+      boalwdn   ,& ! All-sky BOA LW downwelling flux          (W/m2).
+      boaswdn   ,& ! All-sky BOA SW downwelling flux          (W/m2).
+      boaswdndif,& ! All-sky BOA SW downwelling diffuse flux  (W/m2).
       boaswup   ,& ! All-sky BOA SW upwelling flux            (W/m2).
       toalwupclr,& ! CLEAR-sky TOA LW upwelling flux          (W/m2).
       toaswupclr,& ! CLEAR-sky TOA SW upwelling flux          (W/m2).
       boalwupclr,& ! CLEAR-sky BOA LW upwelling flux          (W/m2).
       boaswupclr,& ! CLEAR-sky BOA SW upwelling flux          (W/m2).
-      boaswdnclr,& ! CLEAR-sky BOA SW upwelling flux          (W/m2).
-      boalwdnclr,& ! CLEAR-sky BOA LW upwelling flux          (W/m2).
+      boaswdnclr,& ! CLEAR-sky BOA SW downwelling flux        (W/m2).
+      boalwdnclr,& ! CLEAR-sky BOA LW downwelling flux        (W/m2).
       boapar    ,& ! All-sky BOA PAR downwelling flux         (W/m2).
       boapardif ,& ! All-sky BOA PAR downwelling diffuse flux (W/m2).
       toapar       ! All-sky TOA PAR downwelling flux         (W/m2).
@@ -161,6 +162,7 @@ subroutine driver_for_bugsrad(nlm,tsi,theta, &
       fdlw  ,& ! All-sky LW downwelling flux   (W/m^2).
       fusw  ,& ! All-sky SW upwelling flux     (W/m^2).
       fdsw  ,& ! All-sky SW downwelling flux   (W/m^2).
+      fdswdif,&! All-sky SW downwelling diffuse flux (W/m^2).
       fulwcl,& ! CLEAR-sky LW upwelling flux   (W/m^2).
       fdlwcl,& ! CLEAR-sky LW downwelling flux (W/m^2).
       fuswcl,& ! CLEAR-sky SW upwelling flux   (W/m^2).
@@ -288,7 +290,7 @@ subroutine driver_for_bugsrad(nlm,tsi,theta, &
                  gravity,cp_dry_air,asl,atl,fdsw,fusw,fdlw,fulw, &
                  acld, umco2, umch4, umn2o, &
                  fdswcl,fuswcl,fdlwcl,fulwcl,boapar,boapardif,toapar,cref,&
-                 emis,rho0d,rhodd)
+                 emis,rho0d,rhodd,fdswdif)
 
    ! Output results
 !  print fluxes in W/m2, heating rates in K/day.
@@ -327,5 +329,6 @@ subroutine driver_for_bugsrad(nlm,tsi,theta, &
    boalwdnclr = fdlwcl(1,nlm+1)
    boaswdnclr = fdswcl(1,nlm+1)
    boaswupclr = fuswcl(1,nlm+1)
+   boaswdndif = fdswdif(1,nlm+1)
 
 end subroutine driver_for_bugsrad

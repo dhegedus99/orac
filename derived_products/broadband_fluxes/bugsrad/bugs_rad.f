@@ -17,7 +17,7 @@
      +,                  fdswcl,    fuswcl,    fdlwcl,    fulwcl
      +,                  tboapar, tboapardif, ttoapar
      +,                  tresat
-     +,                  emis,rho0d,rhodd)
+     +,                  emis,rho0d,rhodd, fdswdif)
 
       use kinds
 
@@ -122,6 +122,8 @@
      &, fuswcl     !Upward clear-sky SW flux                   (W/m^-2).
      &, fdlwcl     !Downward clear-sky LW flux                 (W/m^-2).
      &, fulwcl     !Upward clear-sky LW flux                   (W/m^-2).
+     &, fdswdif    !downwelling diffuse radiation flux
+
       real (kind=dbl_kind), dimension(nlen,nlm)::
      &  atl        !All-sky LW radiative heating rate             (K/s).
      &, asl        !All-sky SW radiative heating rate             (K/s).
@@ -227,6 +229,7 @@
      &, fdswcl_day !As fdswcl, but for daytime grid points     (W/m^-2).
      &, fusw_day   !As fusw, but for daytime grid points       (W/m^-2).
      &, fuswcl_day !As fuswcl, but for daytime grid points     (W/m^-2).
+     &, fdswdif_day   !As fdswdif, but for daytime grid points       (W/m^-2).
      &, b1_day     !As b1, but for daytime grid points              (-).
      &, b2_day     !As b2, but for daytime grid points              (-).
      &, b3_day     !As b3, but for daytime grid points              (-).
@@ -257,6 +260,7 @@
       fdlwcl(:,:)        = 0.
       fulw(:,:)          = 0.
       fulwcl(:,:)        = 0.
+      fdswdif(:,:)       = 0.
       atlcl(1:len,:)     = 0.
       aslcl(1:len,:)     = 0.
       atl(1:len,:)       = 0.
@@ -431,6 +435,7 @@
       allocate(fdswcl_day(nday,nnp+1))
       allocate(fusw_day(nday,nnp+1))
       allocate(fuswcl_day(nday,nnp+1))
+      allocate(fdswdif_day(nday,nnp+1))
       allocate(radvbc_day(nday))
       allocate(radvdc_day(nday))
       allocate(radnbc_day(nday))
@@ -476,7 +481,7 @@
      +,          radvdc_day , radvdcc_day ,   radnbc_day , radnbcc_day
      +,          radndc_day , radndcc_day , sel_rules_sw , boapar
      +,          boapardif  , toapar,tresat
-     +,          rho0d,rhodd)
+     +,          rho0d,rhodd, fdswdif_day)
 
 !     print*,'---- end subroutine bugs_swr:'
 
@@ -490,9 +495,9 @@
       radndcc_loc(iday(1:nday)) = radndcc_day(1:nday)
       fdsw(iday(1:nday),:)      = fdsw_day(1:nday,:)
       fdswcl(iday(1:nday),:)    = fdswcl_day(1:nday,:)
+      fdswdif(iday(1:nday),:)      = fdswdif_day(1:nday,:)
       fusw(iday(1:nday),:)      = fusw_day(1:nday,:)
       fuswcl(iday(1:nday),:)    = fuswcl_day(1:nday,:)
-
       tboapar=boapar(1)
       tboapardif=boapardif(1)
       ttoapar=toapar(1)
@@ -528,6 +533,7 @@
       deallocate(radndcc_day)
       deallocate(fdsw_day)
       deallocate(fdswcl_day)
+      deallocate(fdswdif_day)
       deallocate(fusw_day)
       deallocate(fuswcl_day)
 
