@@ -237,6 +237,7 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
    real, allocatable :: CTH2(:,:)             ! Cloud Top Height (xp,yp)
    real, allocatable :: CTT2(:,:)             ! Cloud top temperature (xp,yp)
    real, allocatable :: CTP2(:,:)             ! Cloud top pressure (xp,yp)
+   real, allocatable :: LSFLAG(:,:)           ! Land-sea flag
 
    ! Total solar irriadiance file
    real, allocatable :: TSI_tsi_true_earth(:) ! Total solar irradiance at earth-sun distance
@@ -286,7 +287,7 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
    real :: pxHctop(2)     ! input cloud top height
    real :: pxHcbase(2)    ! input cloud base height
    real :: pxPhaseFlag(2) ! cloud phase type
-
+   
    integer :: pxHctopID(2), pxHcbaseID(2)
    real :: pxLayerType ! aerosol type
    real :: pxts        ! land/sea surface temperature
@@ -312,7 +313,7 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
    real :: &
       pxtoalwup, pxtoaswdn, pxtoaswup ,&          ! All-sky TOA fluxes
       pxtoalwupclr, pxtoaswupclr,&               ! Clear-Sky TOA fluxes
-      pxboalwup, pxboalwdn, pxboaswdn, pxboaswup,& ! All-sky BOA fluxes
+      pxboalwup, pxboalwdn, pxboaswdn, pxboaswup, pxboaswdndif,&  ! All-sky BOA fluxes
       pxboalwupclr, pxboalwdnclr, pxboaswdnclr, pxboaswupclr,& ! clear-sky BOA fluxes
       tpar   ,& ! TOA PAR total
       bpardif,& ! BOA PAR diffuse
@@ -343,6 +344,9 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
 
    real, allocatable :: boa_swdn(:,:) ! BOA incoming SW flux
    integer :: boa_swdn_vid
+
+   real, allocatable :: boa_swdndif(:,:) ! BOA incoming SW diffuse flux
+   integer :: boa_swdndif_vid
 
    ! NetCDF output clear-sky TOA & BOA radiation flux data
    real, allocatable :: toa_lwup_clr(:,:) ! TOA outgoing LW flux clear-sky condition
@@ -395,6 +399,9 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
    real, allocatable :: cbh(:,:) ! cloud base height
    integer :: cbh_vid
 
+   real, allocatable :: surft(:,:) ! surface temperature
+   integer :: surft_vid
+
    ! NetCDF output (lat/lon/time)
    integer :: LAT_vid
    integer :: LON_vid
@@ -424,6 +431,7 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
    character(path_length) :: cpxX0, cpxY0, cpxX1, cpxY1
    integer :: pxX0, pxY0, pxX1, pxY1
    integer :: value
+   integer :: surface_to_process  !0=sea, 1=land, 2=both
    !=0 no processing, =1 collocate aerosol cci file, =2 collocate & save file
    integer :: aerosol_processing_mode
 
@@ -517,6 +525,7 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
    multi_layer = 0
    aerosol_processing_mode = 0
    lut_mode = 0
+   surface_to_process=2
 #ifndef WRAPPER
    ! Set Faerosol, Fcollocation, FMOD04, FMOD06, InfThnCld, corrected_cth, FtoaSW
    do i = 11, nargs
@@ -546,6 +555,14 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
       if (tmpname1 .eq. 'LUT_mode') then
          FtoaSW = trim(tmpname2)
          lut_mode = 1
+      end if
+      if (tmpname1 .eq. 'surface_to_process') then
+         select case (trim(tmpname2))
+         case('0')
+             surface_to_process=0
+         case('1')
+             surface_to_process=1
+         end select
       end if
    end do
 #endif
@@ -701,6 +718,7 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
    allocate(PHASE(xN,yN))
    allocate(TIME(xN,yN))
    allocate(STEMP(xN,yN))
+   allocate(LSFLAG(xN,yN))
 
    ! Read primary data
    call ncdf_read_array(ncid, "time", TIME)
@@ -737,6 +755,7 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
       call ncdf_read_array(ncid, "ctp2", CTP2)
       call ncdf_read_array(ncid, "cth2", CTH2)
    end if
+   call ncdf_read_array(ncid, "lsflag", LSFLAG)
 
    ! Close file
    call ncdf_close(ncid, 'process_broadband_fluxes(FPrimary)')
@@ -897,6 +916,7 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
    allocate(boa_lwdn(xN,yN))
    allocate(boa_swup(xN,yN))
    allocate(boa_swdn(xN,yN))
+   allocate(boa_swdndif(xN,yN))
    allocate(toa_lwup_clr(xN,yN))
    allocate(toa_swup_clr(xN,yN))
    allocate(boa_lwup_clr(xN,yN))
@@ -915,6 +935,7 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
    allocate(AOD550(xN,yN))
    allocate(AREF(xN,yN))
    allocate(cbh(xN,yN))
+   allocate(surft(xN,yN))
 
    ! Fill OUTPUT with missing
    time_data(:,:) = dreal_fill_value
@@ -928,6 +949,7 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
    boa_lwdn(:,:)  = sreal_fill_value
    boa_swup(:,:)  = sreal_fill_value
    boa_swdn(:,:)  = sreal_fill_value
+   boa_swdndif(:,:)  = sreal_fill_value
    toa_lwup_clr(:,:) = sreal_fill_value
    toa_swup_clr(:,:) = sreal_fill_value
    boa_lwup_clr(:,:) = sreal_fill_value
@@ -941,6 +963,7 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
    boa_psfc(:,:) = sreal_fill_value
    boa_qsfc(:,:) = sreal_fill_value
    cbh(:,:) = sreal_fill_value
+   surft(:,:) = sreal_fill_value
 
    ! Re-grid PRTM vertical profile to match bugsrad resolution (NLS)
    do i = 1, NLS
@@ -1131,253 +1154,260 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
       end if
 
       ! loop over along-track dimension
-      do j = pxY0, pxY1
-
+      do j = pxY0, pxY1         
          ! Valid lat/lon required to run (needed for SEVIRI)
          if (LAT(i,j) .ne. -999.0 .and. LON(i,j) .ne. -999.0) then
-
-            !-------------------------------------------------------------------
-            ! Surface albedo
-            ! Interpolate narrowband BRDF radiances to broadband BUGSrad radiances
-            !-------------------------------------------------------------------
-            ! BugsRAD surface properties
-            if (algorithm_processing_mode .eq. 1) then
-               call preprocess_bugsrad_sfc_albedo(nc_alb, rho_0d(i,j,:), &
-                    rho_dd(i,j,:), rho_0d_bugsrad, rho_dd_bugsrad)
-               call preprocess_bugsrad_sfc_emissivity(nc_emis, emis_data(i,j,:), &
-                    emis_bugsrad)
-            end if
-
-            ! FuLiou surface properties
-            if (algorithm_processing_mode .eq. 2 .or. &
-                algorithm_processing_mode .eq. 3 .or. &
-                algorithm_processing_mode .eq. 4) then
-               call preprocess_fuliou_sfc_albedo(nc_alb, rho_0d(i,j,:), &
-                    rho_dd(i,j,:), rho_0d_fuliou, rho_dd_fuliou)
-               call preprocess_bugsrad_sfc_emissivity(nc_emis, emis_data(i,j,:), &
-                    emis_fuliou)
-            end if
-
-!           print*,'BUGSrad (blacksky) ',rho_0d_bugsrad
-!           print*,'BUGSrad (whitesky) ',rho_dd_bugsrad
-!           print*,'BUGSrad emissivity ',emis_bugsrad
-!           print*,'Fu Liou (blacksky) ',rho_0d_fuliou
-!           print*,'Fu Liou (whitesky) ',rho_dd_fuliou
-!           print*,'Fu Liou emissivity ',emis_fuliou
-
-            ! Solar zenith angle
-            pxTheta = COS( SOLZ(i,j) * Pi/180.)
-
-            ! Solar zenith angle condition (remove nighttime & twilight)
-!           if ( SOLZ(i,j) .lt. 80.) then
-
-            ! Meteorology
-            call interpolate_meteorology(lon_prtm, lat_prtm, levdim_prtm,&
-                 xdim_prtm, ydim_prtm, P, T, H, Q, O3,&
-                 LON(i,j), LAT(i,j), inP, inT_, inH, inQ, inO3)
-
-            ! Collocate PRTM vertical resolution to BUGSrad profile resolution
-            ! (31 levels)
-            pxZ = inH(mask_vres)
-            pxP = inP(mask_vres)
-            pxT = inT_(mask_vres)
-            pxQ = inQ(mask_vres)
-            pxO3 = inO3(mask_vres)
-
-            ! Skin temperature - currently bottom level as defined in
-            ! rttov_driver.F90
-!           pxts = inT_(levdim_prtm)
-
-            ! Check if STEMP is valid, if not use ECMWF value.
-            if ((STEMP(i,j) .lt. 0) .or. (STEMP(i,j) .gt. 400)) then
-               pxts = inT_(levdim_prtm)
-            else
-               pxts = STEMP(i,j)
-            end if
-
-            ! Cloud base & top height calculation
-            pxREF(:)       = -999.
-            pxCOT(:)       = -999.
-            pxHctop(:)     = -999.
-            pxHcbase(:)    = -999.
-            pxPhaseFlag(:) = -999.
-            pxHctopID(:)   = -999.
-            pxHcbaseID(:)  = -999.
-
-            ml_flag = 1
-            ! cloud base & top height calculation
-            call preprocess_input(cc_tot(i,j), AREF(i,j), AOD550(i,j), phase(i,j),&
-                    CTT(i,j), CTP(i,j), REF(i,j), COT(i,j), CTH(i,j), InfThnCld,&
-                    NLS, pxZ, tmp_pxREF, tmp_pxCOT, tmp_pxHctop, tmp_pxHcbase,&
-                    tmp_pxPhaseFlag, pxLayerType,&
-                    pxregime, tmp_pxHctopID, tmp_pxHcbaseID)
-
-            pxREF(1)       = tmp_pxREF
-            pxCOT(1)       = tmp_pxCOT
-            pxHctop(1)     = tmp_pxHctop
-            pxHcbase(1)    = tmp_pxHcbase
-            pxPhaseFlag(1) = tmp_pxPhaseFlag
-            pxHctopID(1)   = tmp_pxHctopID(1)
-            pxHcbaseID(1)  = tmp_pxHcbaseID(1)
-
-
-            if (multi_layer .EQ. 1) then
-               if (cot2(i,j) .gt. 0) then
-                  ! ML code has -999. for CTP but CTH exists see correction below
-                  if (CTP2(i,j) .LT. 0. .AND. CTH2(i,j) .GT. 0.) then
-                     print*, CTP2(i,j), CTH2(i,j)
-                     print*,(pxP(MINLOC(ABS(CTH2(i,j)-pxZ)))+ &
-                          pxP(MINLOC(ABS(CTH2(i,j)-pxZ))+1))/2.
-                     ! poor man's interpolation method but gets close...
-                     tmpVal = (pxP( MINLOC(ABS(CTH2(i,j)-pxZ)) )+ &
-                          pxP( MINLOC(ABS(CTH2(i,j)-pxZ))+1))/2.
-                     CTP2(i,j) = tmpVal(1)
-                  end if
-
-                  ml_flag = 2
-                  call preprocess_input(cc_tot2(i,j), AREF(i,j), AOD550(i,j), phase(i,j),&
-                       CTT2(i,j), CTP2(i,j), REF2(i,j), COT2(i,j), CTH2(i,j), InfThnCld,&
-                       NLS, pxZ, tmp_pxREF, tmp_pxCOT, tmp_pxHctop, tmp_pxHcbase,&
-                       tmp_pxPhaseFlag, pxLayerType,&
-                       pxregime, tmp_pxHctopID, tmp_pxHcbaseID)
-                  
-                  pxREF(2)       = tmp_pxREF
-                  pxCOT(2)       = tmp_pxCOT
-                  pxHctop(2)     = tmp_pxHctop
-                  pxHcbase(2)    = tmp_pxHcbase
-                  pxPhaseFlag(2) = tmp_pxPhaseFlag
-                  pxHctopID(2)   = tmp_pxHctopID(1)
-                  pxHcbaseID(2)  = tmp_pxHcbaseID(1)
-                  pxregime = 7
-               end if
-            end if
-
-            if (pxregime .eq. 4) ml_flag = 0
-
-            ! Run full radiation code (not LUT mode)
-            if (lut_mode .eq. 0) then
-
-               !----------------------------------------------------------------
-               ! Call BUGSrad algorithm
-               !----------------------------------------------------------------
-               if (algorithm_processing_mode .eq. 1) then
-                  call driver_for_bugsrad(NL, pxTSI, pxtheta, pxAsfcSWRdr,&
-                          pxAsfcNIRdr, pxAsfcSWRdf, pxAsfcNIRdf, pxts,&
-                          pxPhaseFlag, ml_flag, pxREF, pxCOT, pxHctop, pxHcbase,&
-                          pxHctopID, pxHcbaseID,&
-                          pxZ, pxP, pxT, pxQ, pxO3,&
-                          pxtoalwup, pxtoaswdn, pxtoaswup,&
-                          pxboalwup, pxboalwdn, pxboaswdn, pxboaswup,&
-                          pxtoalwupclr, pxtoaswupclr,&
-                          pxboalwupclr, pxboalwdnclr, pxboaswupclr, pxboaswdnclr,&
-                          bpar, bpardif, tpar,&
-                          ulwfx, dlwfx, uswfx, dswfx,&
-                          ulwfxclr, dlwfxclr, uswfxclr, dswfxclr,&
-                          emis_bugsrad, rho_0d_bugsrad, rho_dd_bugsrad, pxYEAR)
-               end if ! BUGSrad algorithm
-
-               !----------------------------------------------------------------
-               ! Call FuLiou algorithm
-               !----------------------------------------------------------------
-               if (algorithm_processing_mode .eq. 2 .or. &
-                   algorithm_processing_mode .eq. 3 .or. &
-                   algorithm_processing_mode .eq. 4) then
-                  call driver_for_fuliou(NL, pxTSI, pxtheta, pxAsfcSWRdr, pxAsfcNIRdr,&
-                          pxAsfcSWRdf, pxAsfcNIRdf, pxts,&
-                          pxPhaseFlag, ml_flag, pxREF, pxCOT, pxHctop, pxHcbase,&
-                          pxHctopID, pxHcbaseID,&
-                          pxZ, pxP, pxT, pxQ, pxO3,&
-                          pxtoalwup, pxtoaswdn, pxtoaswup,&
-                          pxboalwup, pxboalwdn, pxboaswdn, pxboaswup,&
-                          pxtoalwupclr, pxtoaswupclr,&
-                          pxboalwupclr, pxboalwdnclr, pxboaswupclr, pxboaswdnclr,&
-                          bpar, bpardif, tpar,&
-                          ulwfx, dlwfx, uswfx, dswfx,&
-                          ulwfxclr, dlwfxclr, uswfxclr, dswfxclr,&
-                          emis_fuliou, rho_0d_fuliou, rho_dd_fuliou,&
-                          algorithm_processing_mode)
-               end if ! FuLiou algorithm
-            end if ! lut_mode = 0
-
-            !-------------------------------------------------------------------
-            ! LUT mode
-            !-------------------------------------------------------------------
-            if (lut_mode .eq. 1) then
-               call driver_for_lut(pxTSI, pxregime,&
-                       nASFC, LUT_SFC_ALB,&
-                       nRE, lut_ref, nTAU, lut_cot, nSOLZ, lut_solz,&
-                       LUT_toa_sw_albedo(:,:,:,:),&
-                       LUT_boa_sw_transmission(:,:,:,:),&
-                       LUT_boa_sw_albedo(:,:,:,:),&
-                       alb_data(I,J,1:), REF(I,J), COT(I,J), SOLZ(I,J),&
-                       pxtoalwup, pxtoaswdn, pxtoaswup,&
-                       pxboalwup, pxboalwdn, pxboaswdn, pxboaswup,&
-                       pxtoalwupclr, pxtoaswupclr,&
-                       pxboalwupclr, pxboalwdnclr, pxboaswupclr, pxboaswdnclr,&
-                       bpar, bpardif, tpar)
-            end if
-
-            !-------------------------------------------------------------------
-            ! Quality check retrieved data & fill output arrays
-            !-------------------------------------------------------------------
-            ! Catch NaN
-            nanFlag = 0
-            if (is_nan(pxtoalwup)) nanFlag = 1
-            if (is_nan(pxtoaswup)) nanFlag = 1
-            if (is_nan(pxtoalwupclr)) nanFlag = 1
-            if (is_nan(pxtoaswupclr)) nanFlag = 1
-
-            ! Catch unphysical values
-            if (pxtoalwup .lt. 0. .or. pxtoalwup .gt. 1000.) nanFlag = 1
-            if (pxtoaswup .lt. 0. .or. pxtoaswup .gt. 1600.) nanFlag = 1
-
-            ! Regime type
-            retrflag(i,j) = pxregime
-
-            ! Valid data only
-            if (nanFlag == 0) then
-               ! NetCDF output arrays
-               ! Observed
+            if (surface_to_process .ne. 2 .and. LSFLAG(i,j) .ne. surface_to_process) then
                time_data(i,j) = TIME(i,j)
                lat_data(i,j)  = LAT(i,j)
                lon_data(i,j)  = LON(i,j)
+               cycle
+            else
+               !-------------------------------------------------------------------
+               ! Surface albedo
+               ! Interpolate narrowband BRDF radiances to broadband BUGSrad radiances
+               !-------------------------------------------------------------------
+               ! BugsRAD surface properties
+               if (algorithm_processing_mode .eq. 1) then
+                  call preprocess_bugsrad_sfc_albedo(nc_alb, rho_0d(i,j,:), &
+                       rho_dd(i,j,:), rho_0d_bugsrad, rho_dd_bugsrad)
+                  call preprocess_bugsrad_sfc_emissivity(nc_emis, emis_data(i,j,:), &
+                       emis_bugsrad)
+               end if
 
-               toa_lwup(i,j) = pxtoalwup
-               toa_swup(i,j) = pxtoaswup
-               toa_swdn(i,j) = pxtoaswdn
-               boa_lwup(i,j) = pxboalwup
-               boa_lwdn(i,j) = pxboalwdn
-               boa_swup(i,j) = pxboaswup
-               boa_swdn(i,j) = pxboaswdn
+               ! FuLiou surface properties
+               if (algorithm_processing_mode .eq. 2 .or. &
+                   algorithm_processing_mode .eq. 3 .or. &
+                   algorithm_processing_mode .eq. 4) then
+                  call preprocess_fuliou_sfc_albedo(nc_alb, rho_0d(i,j,:), &
+                       rho_dd(i,j,:), rho_0d_fuliou, rho_dd_fuliou)
+                  call preprocess_bugsrad_sfc_emissivity(nc_emis, emis_data(i,j,:), &
+                       emis_fuliou)
+               end if
 
-               ! Clear-sky retrieval
-               toa_lwup_clr(i,j) = pxtoalwupclr
-               toa_swup_clr(i,j) = pxtoaswupclr
-               boa_lwup_clr(i,j) = pxboalwupclr
-               boa_lwdn_clr(i,j) = pxboalwdnclr
-               boa_swup_clr(i,j) = pxboaswupclr
-               boa_swdn_clr(i,j) = pxboaswdnclr
+!              print*,'BUGSrad (blacksky) ',rho_0d_bugsrad
+!              print*,'BUGSrad (whitesky) ',rho_dd_bugsrad
+!              print*,'BUGSrad emissivity ',emis_bugsrad
+!              print*,'Fu Liou (blacksky) ',rho_0d_fuliou
+!              print*,'Fu Liou (whitesky) ',rho_dd_fuliou
+!              print*,'Fu Liou emissivity ',emis_fuliou
 
-               ! PAR
-               toa_par_tot(i,j) = tpar * pxPAR_WEIGHT
-               boa_par_tot(i,j) = bpar * pxPAR_WEIGHT
-               boa_par_dif(i,j) = bpardif * pxPAR_WEIGHT
+               ! Solar zenith angle
+               pxTheta = COS( SOLZ(i,j) * Pi/180.)
 
-               ! Derived properties
-               cbh(i,j) = pxHcbase(1)
-            end if ! valid data
+               ! Solar zenith angle condition (remove nighttime & twilight)
+!              if ( SOLZ(i,j) .lt. 80.) then
 
-            ! meteorology data to output in netCDF file
-            boa_tsfc(i,j) = pxT(NLS)
-            boa_psfc(i,j) = pxP(NLS)
-            boa_qsfc(i,j) = pxQ(NLS)
-            call compute_lts(NL, pxP, pxT, pxLTS)
-            call compute_fth(NL, pxP, pxT, pxQ, pxFTH)
-            call compute_column_o3(NL, pxZ, pxO3, pxcolO3)
-            lts(i,j) = pxLTS
-            fth(i,j) = pxFTH
-            colO3(i,j) = pxcolO3
+               ! Meteorology
+               call interpolate_meteorology(lon_prtm, lat_prtm, levdim_prtm,&
+                    xdim_prtm, ydim_prtm, P, T, H, Q, O3,&
+                    LON(i,j), LAT(i,j), inP, inT_, inH, inQ, inO3)
 
+               ! Collocate PRTM vertical resolution to BUGSrad profile resolution
+               ! (31 levels)
+               pxZ = inH(mask_vres)
+               pxP = inP(mask_vres)
+               pxT = inT_(mask_vres)
+               pxQ = inQ(mask_vres)
+               pxO3 = inO3(mask_vres)
+
+               ! Skin temperature - currently bottom level as defined in
+               ! rttov_driver.F90
+!              pxts = inT_(levdim_prtm)
+
+               ! Check if STEMP is valid, if not use ECMWF value.
+               if ((STEMP(i,j) .lt. 0) .or. (STEMP(i,j) .gt. 400)) then
+                  pxts = inT_(levdim_prtm)
+               else
+                  pxts = STEMP(i,j)
+               end if
+               surft(i,j) = pxts      
+
+               ! Cloud base & top height calculation
+               pxREF(:)       = -999.
+               pxCOT(:)       = -999.
+               pxHctop(:)     = -999.
+               pxHcbase(:)    = -999.
+               pxPhaseFlag(:) = -999.
+               pxHctopID(:)   = -999.
+               pxHcbaseID(:)  = -999.
+
+               ml_flag = 1
+               ! cloud base & top height calculation
+               call preprocess_input(cc_tot(i,j), AREF(i,j), AOD550(i,j), phase(i,j),&
+                       CTT(i,j), CTP(i,j), REF(i,j), COT(i,j), CTH(i,j), InfThnCld,&
+                       NLS, pxZ, tmp_pxREF, tmp_pxCOT, tmp_pxHctop, tmp_pxHcbase,&
+                       tmp_pxPhaseFlag, pxLayerType,&
+                       pxregime, tmp_pxHctopID, tmp_pxHcbaseID)
+
+               pxREF(1)       = tmp_pxREF
+               pxCOT(1)       = tmp_pxCOT
+               pxHctop(1)     = tmp_pxHctop
+               pxHcbase(1)    = tmp_pxHcbase
+               pxPhaseFlag(1) = tmp_pxPhaseFlag
+               pxHctopID(1)   = tmp_pxHctopID(1)
+               pxHcbaseID(1)  = tmp_pxHcbaseID(1)
+
+
+               if (multi_layer .EQ. 1) then
+                  if (cot2(i,j) .gt. 0) then
+                     ! ML code has -999. for CTP but CTH exists see correction below
+                     if (CTP2(i,j) .LT. 0. .AND. CTH2(i,j) .GT. 0.) then
+                        print*, CTP2(i,j), CTH2(i,j)
+                        print*,(pxP(MINLOC(ABS(CTH2(i,j)-pxZ)))+ &
+                             pxP(MINLOC(ABS(CTH2(i,j)-pxZ))+1))/2.
+                        ! poor man's interpolation method but gets close...
+                        tmpVal = (pxP( MINLOC(ABS(CTH2(i,j)-pxZ)) )+ &
+                             pxP( MINLOC(ABS(CTH2(i,j)-pxZ))+1))/2.
+                        CTP2(i,j) = tmpVal(1)
+                     end if
+
+                     ml_flag = 2
+                     call preprocess_input(cc_tot2(i,j), AREF(i,j), AOD550(i,j), phase(i,j),&
+                          CTT2(i,j), CTP2(i,j), REF2(i,j), COT2(i,j), CTH2(i,j), InfThnCld,&
+                          NLS, pxZ, tmp_pxREF, tmp_pxCOT, tmp_pxHctop, tmp_pxHcbase,&
+                          tmp_pxPhaseFlag, pxLayerType,&
+                          pxregime, tmp_pxHctopID, tmp_pxHcbaseID)
+                  
+                     pxREF(2)       = tmp_pxREF
+                     pxCOT(2)       = tmp_pxCOT
+                     pxHctop(2)     = tmp_pxHctop
+                     pxHcbase(2)    = tmp_pxHcbase
+                     pxPhaseFlag(2) = tmp_pxPhaseFlag
+                     pxHctopID(2)   = tmp_pxHctopID(1)
+                     pxHcbaseID(2)  = tmp_pxHcbaseID(1)
+                     pxregime = 7
+                  end if
+               end if
+
+               if (pxregime .eq. 4) ml_flag = 0
+
+               ! Run full radiation code (not LUT mode)
+               if (lut_mode .eq. 0) then
+
+                  !----------------------------------------------------------------
+                  ! Call BUGSrad algorithm
+                  !----------------------------------------------------------------
+                  if (algorithm_processing_mode .eq. 1) then
+                     call driver_for_bugsrad(NL, pxTSI, pxtheta, pxAsfcSWRdr,&
+                             pxAsfcNIRdr, pxAsfcSWRdf, pxAsfcNIRdf, pxts,&
+                             pxPhaseFlag, ml_flag, pxREF, pxCOT, pxHctop, pxHcbase,&
+                             pxHctopID, pxHcbaseID,&
+                             pxZ, pxP, pxT, pxQ, pxO3,&
+                             pxtoalwup, pxtoaswdn, pxtoaswup,&
+                             pxboalwup, pxboalwdn, pxboaswdn, pxboaswup,&
+                             pxtoalwupclr, pxtoaswupclr,&
+                             pxboalwupclr, pxboalwdnclr, pxboaswupclr, pxboaswdnclr,&
+                             bpar, bpardif, tpar,&
+                             ulwfx, dlwfx, uswfx, dswfx,&
+                             ulwfxclr, dlwfxclr, uswfxclr, dswfxclr,&
+                             emis_bugsrad, rho_0d_bugsrad, rho_dd_bugsrad, pxYEAR,&
+                             pxboaswdndif)
+                  end if ! BUGSrad algorithm
+
+                  !----------------------------------------------------------------
+                  ! Call FuLiou algorithm
+                  !----------------------------------------------------------------
+                  if (algorithm_processing_mode .eq. 2 .or. &
+                      algorithm_processing_mode .eq. 3 .or. &
+                      algorithm_processing_mode .eq. 4) then
+                     call driver_for_fuliou(NL, pxTSI, pxtheta, pxAsfcSWRdr, pxAsfcNIRdr,&
+                             pxAsfcSWRdf, pxAsfcNIRdf, pxts,&
+                             pxPhaseFlag, ml_flag, pxREF, pxCOT, pxHctop, pxHcbase,&
+                             pxHctopID, pxHcbaseID,&
+                             pxZ, pxP, pxT, pxQ, pxO3,&
+                             pxtoalwup, pxtoaswdn, pxtoaswup,&
+                             pxboalwup, pxboalwdn, pxboaswdn, pxboaswup,&
+                             pxtoalwupclr, pxtoaswupclr,&
+                             pxboalwupclr, pxboalwdnclr, pxboaswupclr, pxboaswdnclr,&
+                             bpar, bpardif, tpar,&
+                             ulwfx, dlwfx, uswfx, dswfx,&
+                             ulwfxclr, dlwfxclr, uswfxclr, dswfxclr,&
+                             emis_fuliou, rho_0d_fuliou, rho_dd_fuliou,&
+                             algorithm_processing_mode)
+                  end if ! FuLiou algorithm
+               end if ! lut_mode = 0
+
+               !-------------------------------------------------------------------
+               ! LUT mode
+               !-------------------------------------------------------------------
+               if (lut_mode .eq. 1) then
+                  call driver_for_lut(pxTSI, pxregime,&
+                          nASFC, LUT_SFC_ALB,&
+                          nRE, lut_ref, nTAU, lut_cot, nSOLZ, lut_solz,&
+                          LUT_toa_sw_albedo(:,:,:,:),&
+                          LUT_boa_sw_transmission(:,:,:,:),&
+                          LUT_boa_sw_albedo(:,:,:,:),&
+                          alb_data(I,J,1:), REF(I,J), COT(I,J), SOLZ(I,J),&
+                          pxtoalwup, pxtoaswdn, pxtoaswup,&
+                          pxboalwup, pxboalwdn, pxboaswdn, pxboaswup,&
+                          pxtoalwupclr, pxtoaswupclr,&
+                          pxboalwupclr, pxboalwdnclr, pxboaswupclr, pxboaswdnclr,&
+                          bpar, bpardif, tpar)
+               end if
+
+               !-------------------------------------------------------------------
+               ! Quality check retrieved data & fill output arrays
+               !-------------------------------------------------------------------
+               ! Catch NaN
+               nanFlag = 0
+               if (is_nan(pxtoalwup)) nanFlag = 1
+               if (is_nan(pxtoaswup)) nanFlag = 1
+               if (is_nan(pxtoalwupclr)) nanFlag = 1
+               if (is_nan(pxtoaswupclr)) nanFlag = 1
+
+               ! Catch unphysical values
+               if (pxtoalwup .lt. 0. .or. pxtoalwup .gt. 1000.) nanFlag = 1
+               if (pxtoaswup .lt. 0. .or. pxtoaswup .gt. 1600.) nanFlag = 1
+
+               ! Regime type
+               retrflag(i,j) = pxregime
+            
+               ! Valid data only
+               if (nanFlag == 0) then
+                  ! NetCDF output arrays
+                  ! Observed
+                  time_data(i,j) = TIME(i,j)
+                  lat_data(i,j)  = LAT(i,j)
+                  lon_data(i,j)  = LON(i,j)
+
+                  toa_lwup(i,j) = pxtoalwup
+                  toa_swup(i,j) = pxtoaswup
+                  toa_swdn(i,j) = pxtoaswdn
+                  boa_lwup(i,j) = pxboalwup
+                  boa_lwdn(i,j) = pxboalwdn
+                  boa_swup(i,j) = pxboaswup
+                  boa_swdn(i,j) = pxboaswdn
+                  boa_swdndif(i,j) = pxboaswdndif
+
+                  ! Clear-sky retrieval
+                  toa_lwup_clr(i,j) = pxtoalwupclr
+                  toa_swup_clr(i,j) = pxtoaswupclr
+                  boa_lwup_clr(i,j) = pxboalwupclr
+                  boa_lwdn_clr(i,j) = pxboalwdnclr
+                  boa_swup_clr(i,j) = pxboaswupclr
+                  boa_swdn_clr(i,j) = pxboaswdnclr
+
+                  ! PAR
+                  toa_par_tot(i,j) = tpar * pxPAR_WEIGHT
+                  boa_par_tot(i,j) = bpar * pxPAR_WEIGHT
+                  boa_par_dif(i,j) = bpardif * pxPAR_WEIGHT
+
+                  ! Derived properties
+                  cbh(i,j) = pxHcbase(1)
+               end if ! valid data
+
+               ! meteorology data to output in netCDF file
+               boa_tsfc(i,j) = pxT(NLS)
+               boa_psfc(i,j) = pxP(NLS)
+               boa_qsfc(i,j) = pxQ(NLS)
+               call compute_lts(NL, pxP, pxT, pxLTS)
+               call compute_fth(NL, pxP, pxT, pxQ, pxFTH)
+               call compute_column_o3(NL, pxZ, pxO3, pxcolO3)
+               lts(i,j) = pxLTS
+               fth(i,j) = pxFTH
+               colO3(i,j) = pxcolO3
+            end if
          end if ! valid geolocation data
       end do ! j-loop
    end do ! i-loop
@@ -1564,11 +1594,31 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
    call ncdf_def_var_float_packed_float( &
         ncid, &
         dims_var, &
-        'boa_swdn', &
+        'boa_swdn_tot', &
         boa_swdn_vid, &
         verbose, &
-        long_name     = 'bottom of atmosphere downwelling solar radiation', &
+        long_name     = 'bottom of atmosphere total downwelling solar radiation', &
         standard_name = 'surface_downwelling_shortwave_flux_in_air', &
+        fill_value    = sreal_fill_value, &
+        scale_factor  = real(1), &
+        add_offset    = real(0), &
+        valid_min     = real(0, sreal), &
+        valid_max     = real(1500, sreal), &
+        units         = 'W m-2', &
+        deflate_level = deflate_lv, &
+        shuffle       = shuffle_flag)
+
+   !----------------------------------------------------------------------------
+   ! surface_downwelling_diffuse_shortwave_flux_in_air
+   !----------------------------------------------------------------------------
+   call ncdf_def_var_float_packed_float( &
+        ncid, &
+        dims_var, &
+        'boa_swdn_dif', &
+        boa_swdndif_vid, &
+        verbose, &
+        long_name     = 'bottom of atmosphere downwelling diffuse solar radiation', &
+        standard_name = 'surface_downwelling_diffuse_shortwave_flux_in_air', &
         fill_value    = sreal_fill_value, &
         scale_factor  = real(1), &
         add_offset    = real(0), &
@@ -1960,6 +2010,26 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
         deflate_level = deflate_lv, &
         shuffle       = shuffle_flag)
 
+   !----------------------------------------------------------------------------
+   ! Surface temperature
+   !----------------------------------------------------------------------------
+   call ncdf_def_var_float_packed_float( &
+        ncid, &
+        dims_var, &
+        'stemp', &
+        surft_vid, &
+        verbose, &
+        long_name     = 'surface temperature', &
+        standard_name = 'surface_temperature', &
+        fill_value    = sreal_fill_value, &
+        scale_factor  = real(1), &
+        add_offset    = real(0), &
+        valid_min     = real(0, sreal), &
+        valid_max     = real(1500, sreal), &
+        units         = 'kelvin', &
+        deflate_level = deflate_lv, &
+        shuffle       = shuffle_flag)
+
 
    ! Need to exit define mode to write data
    if (nf90_enddef(ncid) .ne. NF90_NOERR) then
@@ -1989,8 +2059,11 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
    call ncdf_write_array(ncid,'toa_lwup', toa_lwup_vid,&
         toa_lwup(ixstart:,iystart:), 1, 1, n_x, 1, 1, n_y)
 
-   call ncdf_write_array(ncid,'boa_swdn', boa_swdn_vid,&
+   call ncdf_write_array(ncid,'boa_swdn_tot', boa_swdn_vid,&
         boa_swdn(ixstart:,iystart:), 1, 1, n_x, 1, 1, n_y)
+
+   call ncdf_write_array(ncid,'boa_swdn_dif', boa_swdndif_vid,&
+        boa_swdndif(ixstart:,iystart:), 1, 1, n_x, 1, 1, n_y)
 
    call ncdf_write_array(ncid,'boa_swup', boa_swup_vid,&
         boa_swup(ixstart:,iystart:), 1, 1, n_x, 1, 1, n_y)
@@ -2048,6 +2121,9 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
 
    call ncdf_write_array(ncid,'cbh', cbh_vid,&
         cbh(ixstart:,iystart:), 1, 1, n_x, 1, 1, n_y)
+
+   call ncdf_write_array(ncid,'stemp', surft_vid,&
+        surft(ixstart:,iystart:), 1, 1, n_x, 1, 1, n_y)
 
    ! Close netcdf file
    call ncdf_close(ncid, 'process_broadband_fluxes()')
