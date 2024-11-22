@@ -41,12 +41,13 @@ module netcdf_output_m
    integer, parameter :: NETCDF_OUTPUT_FILE_PRTM   = 9
    integer, parameter :: NETCDF_OUTPUT_FILE_SWRTM  = 10
    integer, parameter :: NETCDF_OUTPUT_FILE_CTP    = 11
+   integer, parameter :: NETCDF_OUTPUT_FILE_COX    = 12
 
    type netcdf_output_info_t
 
       ! file ids
       integer :: ncid_alb, ncid_clf, ncid_config, ncid_geo, ncid_loc, ncid_lsf
-      integer :: ncid_lwrtm, ncid_msi, ncid_prtm, ncid_swrtm, ncid_ctp
+      integer :: ncid_lwrtm, ncid_msi, ncid_prtm, ncid_swrtm, ncid_ctp, ncid_cox
 
       ! fundamental dimensions ids for the different dimensions in the different
       ! files
@@ -62,6 +63,7 @@ module netcdf_output_m
       integer :: dimid_x_pw,  dimid_y_pw
       integer :: dimid_x_sw,  dimid_y_sw,  dimid_v_sw
       integer :: dimid_x_ctp, dimid_y_ctp, dimid_v_ctp
+      integer :: dimid_sea_cox
 
       integer :: dimid_xy_lw, dimid_xy_pw, dimid_xy_sw
 
@@ -73,6 +75,7 @@ module netcdf_output_m
       integer :: dimid_c_config, dimid_c_config_alb, dimid_c_config_emis
       integer :: dimid_x_config, dimid_y_config
       integer :: dimid_c_msi
+      integer :: dimid_c_alb_cox
 
 
       ! variable ids
@@ -133,6 +136,17 @@ module netcdf_output_m
 
       ! ctp file:
       integer :: vid_ctp_fg, vid_ctp_fg_unc
+
+      ! cox file
+      integer :: vid_cox_alb_abs_ch_numbers
+      integer :: vid_cox_alb_data
+      integer :: vid_cox_rho_0v_data, vid_cox_rho_0d_data
+      integer :: vid_cox_rho_dv_data, vid_cox_rho_dd_data
+      integer :: vid_u10_data, vid_v10_data
+      integer :: vid_oc_log, vid_oc_wl, vid_oc_ta, vid_oc_tb
+      integer :: vid_cox_solzen, vid_cox_satzen, vid_cox_solaz, vid_cox_relazi
+
+      
 
    end type netcdf_output_info_t
 

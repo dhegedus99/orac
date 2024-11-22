@@ -484,7 +484,7 @@ subroutine orac_preproc(mytask, ntasks, lower_bound, upper_bound, driver_path_fi
    preproc_opts%nwp_fnames%nwp_path3(2)  = ' '
    preproc_opts%nwp_nlevels              = 0
    preproc_opts%use_l1_land_mask         = .false.
-   preproc_opts%use_occci                = .false.
+   preproc_opts%use_occci                = .true.
    preproc_opts%occci_path               = ' '
    preproc_opts%use_predef_lsm           = .false.
    preproc_opts%ext_lsm_path             = ' '
@@ -861,6 +861,7 @@ subroutine orac_preproc(mytask, ntasks, lower_bound, upper_bound, driver_path_fi
          return
       end if
 #endif
+      print*, minval(imager_angles%solzen), maxval(imager_angles%solzen)
 
       ! carry out any preparatory steps: identify required ECMWF and MODIS L3
       ! information, set paths and filenames to those required auxiliary /
@@ -870,7 +871,7 @@ subroutine orac_preproc(mytask, ntasks, lower_bound, upper_bound, driver_path_fi
            source_atts%level1b_orbit_number, nwp_flag, imager_geolocation, &
            imager_time, i_chunk, ecmwf_time_int_fac, assume_full_paths, verbose)
 
-      ! read ECMWF fields and grid information
+     ! read ECMWF fields and grid information
       if (verbose) then
          write(*,*) 'Start reading meteorological data file'
          write(*,*) 'nwp_flag: ', nwp_flag
@@ -975,34 +976,57 @@ subroutine orac_preproc(mytask, ntasks, lower_bound, upper_bound, driver_path_fi
               assume_full_paths, verbose, surface, preproc_surf, source_atts)
       end if
 
+      !if (.not. preproc_opts%do_ironly) then
+         ! select correct reflectance files and calculate surface reflectance
+         ! over land and ocean
+         !if (verbose) write(*,*) 'Get surface reflectance'
+         !call get_surface_reflectance(granule%cyear, granule%cdoy, granule%cmonth, &
+         !     modis_albedo_path, modis_brdf_path, preproc_opts%occci_path, imager_flags, &
+         !     imager_geolocation, imager_angles, channel_info, ecmwf, &
+         !     assume_full_paths, include_full_brdf, preproc_opts%use_occci, &
+         !     preproc_opts%use_swansea_climatology, preproc_opts%swansea_gamma, verbose, &
+         !     preproc_opts%mcd43_max_qaflag, surface, source_atts, netcdf_info)
+      !end if
+
+      ! create output netcdf files.
+      if (verbose) write(*,*) 'Create output netcdf files'
+      if (verbose) write(*,*) 'output_path: ', trim(output_path)
+
+      call netcdf_output_create(output_path, out_paths, granule, global_atts, &
+           source_atts, preproc_dims, imager_angles, imager_geolocation, imager_flags, &
+           netcdf_info, channel_info, include_full_brdf, nwp_flag, &
+           preproc_opts%do_cloud_emis, preproc_opts%use_seviri_ann_ctp_fg, &
+           preproc_opts%use_seviri_ann_mlay, verbose)
+
       if (.not. preproc_opts%do_ironly) then
          ! select correct reflectance files and calculate surface reflectance
          ! over land and ocean
          if (verbose) write(*,*) 'Get surface reflectance'
-         call get_surface_reflectance(granule%cyear, granule%cdoy, granule%cmonth, &
+         
+         call get_cm_td(granule%cyear, granule%cdoy, granule%cmonth, &
               modis_albedo_path, modis_brdf_path, preproc_opts%occci_path, imager_flags, &
               imager_geolocation, imager_angles, channel_info, ecmwf, &
               assume_full_paths, include_full_brdf, preproc_opts%use_occci, &
               preproc_opts%use_swansea_climatology, preproc_opts%swansea_gamma, verbose, &
-              preproc_opts%mcd43_max_qaflag, surface, source_atts)
+              preproc_opts%mcd43_max_qaflag, surface, source_atts, netcdf_info)
 
          ! Use the Near-real-time Ice and Snow Extent (NISE) data from the National
          ! Snow and Ice Data Center to detect ice and snow pixels, and correct the
          ! surface albedo.
-         if (verbose) write(*,*) 'Correct for ice and snow'
-         if (.not. preproc_opts%disable_snow_ice_corr) then
-            if (.not. preproc_opts%use_ecmwf_snow_and_ice) then
-               call correct_for_ice_snow(nise_ice_snow_path, &
-                    imager_geolocation, surface, granule%cyear, granule%cmonth, granule%cday, &
-                    channel_info, assume_full_paths, include_full_brdf, &
-                    source_atts, verbose)
-            else
-               call correct_for_ice_snow_nwp(preproc_opts%nwp_fnames%nwp_path_file(1), &
-                    imager_geolocation, channel_info, imager_flags, preproc_dims, &
-                    preproc_prtm, preproc_geoloc, surface, include_full_brdf, source_atts, &
-                    verbose)
-            end if
-         end if
+!         if (verbose) write(*,*) 'Correct for ice and snow'
+!         if (.not. preproc_opts%disable_snow_ice_corr) then
+!            if (.not. preproc_opts%use_ecmwf_snow_and_ice) then
+!               call correct_for_ice_snow(nise_ice_snow_path, &
+!                    imager_geolocation, surface, granule%cyear, granule%cmonth, granule%cday, &
+!                    channel_info, assume_full_paths, include_full_brdf, &
+!                    source_atts, verbose)
+!            else
+!               call correct_for_ice_snow_nwp(preproc_opts%nwp_fnames%nwp_path_file(1), &
+!                    imager_geolocation, channel_info, imager_flags, preproc_dims, &
+!                    preproc_prtm, preproc_geoloc, surface, include_full_brdf, source_atts, &
+!                    verbose)
+!            end if
+!         end if
       else
          if (channel_info%nchannels_sw .gt. 0) then
             surface%albedo(:,:,:) = sreal_fill_value
@@ -1014,24 +1038,25 @@ subroutine orac_preproc(mytask, ntasks, lower_bound, upper_bound, driver_path_fi
             end if
          end if
       end if
-      if (.not. preproc_opts%do_cloud_emis) then
-         if (verbose) write(*,*) 'Calculate Pavolonis cloud phase with high '// &
-              'resolution ERA surface data'
-         if (preproc_opts%do_cloud_type) then
-           call cloud_type(channel_info, granule%sensor, surface, imager_flags, &
-                imager_angles, imager_geolocation, imager_measurements, &
-                imager_pavolonis, ecmwf, granule%platform, granule%doy, preproc_opts%do_ironly, &
-                do_spectral_response_correction, preproc_opts%use_seviri_ann_cma_cph, &
-                preproc_opts%use_seviri_ann_ctp_fg, preproc_opts%use_seviri_ann_mlay, &
-                preproc_opts%do_nasa, verbose)
-         end if
-      end if
+
+!      if (.not. preproc_opts%do_cloud_emis) then
+!         if (verbose) write(*,*) 'Calculate Pavolonis cloud phase with high '// &
+!              'resolution ERA surface data'
+!         if (preproc_opts%do_cloud_type) then
+!           call cloud_type(channel_info, granule%sensor, surface, imager_flags, &
+!                imager_angles, imager_geolocation, imager_measurements, &
+!                imager_pavolonis, ecmwf, granule%platform, granule%doy, preproc_opts%do_ironly, &
+!                do_spectral_response_correction, preproc_opts%use_seviri_ann_cma_cph, &
+!                preproc_opts%use_seviri_ann_ctp_fg, preproc_opts%use_seviri_ann_mlay, &
+!                preproc_opts%do_nasa, verbose)
+!         end if
+!      end if
       
-      if (preproc_opts%do_dust_correction) then
-         if (verbose) write(*,*) 'Apply dust-detection correction to cloud mask'
-         call correct_for_dust(channel_info, imager_measurements, imager_angles, &
-              imager_geolocation, imager_pavolonis)
-      end if
+!      if (preproc_opts%do_dust_correction) then
+!         if (verbose) write(*,*) 'Apply dust-detection correction to cloud mask'
+!         call correct_for_dust(channel_info, imager_measurements, imager_angles, &
+!              imager_geolocation, imager_pavolonis)
+!      end if
       
 !!$      if (imager_angles%nviews .gt. 1) then
 !!$         ! A temporary hack for Aerosol_cci:
@@ -1088,55 +1113,45 @@ subroutine orac_preproc(mytask, ntasks, lower_bound, upper_bound, driver_path_fi
 !!$         end if
 !!$      end if
 
-      ! create output netcdf files.
-      if (verbose) write(*,*) 'Create output netcdf files'
-      if (verbose) write(*,*) 'output_path: ', trim(output_path)
-
-      call netcdf_output_create(output_path, out_paths, granule, global_atts, &
-           source_atts, preproc_dims, imager_angles, imager_geolocation, &
-           netcdf_info, channel_info, include_full_brdf, nwp_flag, &
-           preproc_opts%do_cloud_emis, preproc_opts%use_seviri_ann_ctp_fg, &
-           preproc_opts%use_seviri_ann_mlay, verbose)
-
       ! perform RTTOV calculations
-      if (verbose) write(*,*) 'Perform RTTOV calculations'
-      if (nwp_flag .gt. 5 .and. nwp_flag .le. 8) then
-         call rttov_driver_gfs(rttov_coef_path, rttov_emiss_path, granule, &
-              preproc_dims, preproc_geoloc, preproc_geo, preproc_prtm, &
-              preproc_surf, preproc_cld, netcdf_info, channel_info, &
-              preproc_opts, verbose)
+!      if (verbose) write(*,*) 'Perform RTTOV calculations'
+!      if (nwp_flag .gt. 5 .and. nwp_flag .le. 8) then
+!         call rttov_driver_gfs(rttov_coef_path, rttov_emiss_path, granule, &
+!              preproc_dims, preproc_geoloc, preproc_geo, preproc_prtm, &
+!              preproc_surf, preproc_cld, netcdf_info, channel_info, &
+!              preproc_opts, verbose)
          ! Call cloud emissivity function
-#ifdef INCLUDE_SATWX
-         if (preproc_opts%do_cloud_emis) then
-            call get_cloud_emis(channel_info, imager_measurements, &
-                  imager_geolocation, preproc_dims, preproc_geoloc, &
-                  preproc_cld, preproc_prtm, imager_cloud, &
-                  granule%sensor, verbose)
-         end if
-#endif
-      else
-#ifdef INCLUDE_SATWX
-         if (preproc_opts%do_cloud_emis) call get_trop_tp(preproc_prtm, preproc_dims)
-#endif
-         call rttov_driver(rttov_coef_path, rttov_emiss_path, granule, &
-              preproc_dims, preproc_geoloc, preproc_geo, preproc_prtm, &
-              preproc_surf, preproc_cld, netcdf_info, channel_info, &
-              preproc_opts, verbose)
-         ! Call cloud emissivity function
-         if (preproc_opts%do_cloud_emis) then
-#ifdef INCLUDE_SATWX
-            call get_cloud_emis(channel_info, imager_measurements, &
-                  imager_geolocation, preproc_dims, preproc_geoloc, &
-                  preproc_cld, preproc_prtm, imager_cloud, &
-                  granule%sensor, verbose)
-            call do_cb_detect(channel_info, imager_measurements, &
-                 imager_geolocation, imager_cloud, imager_pavolonis, &
-                 granule%sensor, verbose)
-#else
-            write(*,*) "ERROR: Cannot compute cloud emissivity and CB locations without SatWx."
-#endif
-         end if
-      end if
+!#ifdef INCLUDE_SATWX
+!         if (preproc_opts%do_cloud_emis) then
+!            call get_cloud_emis(channel_info, imager_measurements, &
+!                  imager_geolocation, preproc_dims, preproc_geoloc, &
+!                  preproc_cld, preproc_prtm, imager_cloud, &
+!                  granule%sensor, verbose)
+!         end if
+!#endif
+!      else
+!#ifdef INCLUDE_SATWX
+!         if (preproc_opts%do_cloud_emis) call get_trop_tp(preproc_prtm, preproc_dims)
+!#endif
+!         call rttov_driver(rttov_coef_path, rttov_emiss_path, granule, &
+!              preproc_dims, preproc_geoloc, preproc_geo, preproc_prtm, &
+!              preproc_surf, preproc_cld, netcdf_info, channel_info, &
+!              preproc_opts, verbose)
+!         ! Call cloud emissivity function
+!         if (preproc_opts%do_cloud_emis) then
+!#ifdef INCLUDE_SATWX
+!            call get_cloud_emis(channel_info, imager_measurements, &
+!                  imager_geolocation, preproc_dims, preproc_geoloc, &
+!                  preproc_cld, preproc_prtm, imager_cloud, &
+!                  granule%sensor, verbose)
+!            call do_cb_detect(channel_info, imager_measurements, &
+!                 imager_geolocation, imager_cloud, imager_pavolonis, &
+!                 granule%sensor, verbose)
+!#else
+!            write(*,*) "ERROR: Cannot compute cloud emissivity and CB locations without SatWx."
+!#endif
+!         end if
+!      end if
 
 #ifdef WRAPPER
 
@@ -1185,16 +1200,16 @@ subroutine orac_preproc(mytask, ntasks, lower_bound, upper_bound, driver_path_fi
 #else
 
       ! write netcdf output files
-      if (verbose) write(*,*) 'Write netcdf output files'
-      call netcdf_output_write_swath(imager_flags, imager_angles, &
-           imager_geolocation, imager_measurements, imager_cloud, imager_time, &
-           imager_pavolonis, netcdf_info, channel_info, surface, include_full_brdf, &
-           preproc_opts%do_cloud_emis, preproc_opts%use_seviri_ann_ctp_fg, &
-           preproc_opts%use_seviri_ann_mlay)
+!      if (verbose) write(*,*) 'Write netcdf output files'
+!      call netcdf_output_write_swath(imager_flags, imager_angles, &
+!           imager_geolocation, imager_measurements, imager_cloud, imager_time, &
+!           imager_pavolonis, netcdf_info, channel_info, surface, include_full_brdf, &
+!           preproc_opts%do_cloud_emis, preproc_opts%use_seviri_ann_ctp_fg, &
+!           preproc_opts%use_seviri_ann_mlay)
 
       ! close output netcdf files
-      if (verbose) write(*,*)'Close netcdf output files'
-      call netcdf_output_close(netcdf_info, preproc_opts%use_seviri_ann_ctp_fg)
+!      if (verbose) write(*,*)'Close netcdf output files'
+!      call netcdf_output_close(netcdf_info, preproc_opts%use_seviri_ann_ctp_fg)
 
 #endif
 

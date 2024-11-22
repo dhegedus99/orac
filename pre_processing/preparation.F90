@@ -208,6 +208,7 @@ subroutine preparation(paths, granule, opts, global_atts, orbit_number, &
    paths%loc_file = trim(adjustl(file_base))//'.loc.nc'
    paths%alb_file = trim(adjustl(file_base))//'.alb.nc'
    paths%ctp_file = trim(adjustl(file_base))//'.ctp.nc'
+   paths%cox_file = trim(adjustl(file_base))//'.cox.nc'
   
    if (verbose) write(*,*) '>>>>>>>>>>>>>>> Leaving preparation()'
 

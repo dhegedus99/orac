@@ -139,7 +139,7 @@ subroutine get_surface_reflectance(cyear, cdoy, cmonth, modis_surf_path, &
      modis_brdf_path, occci_path, imager_flags, imager_geolocation, &
      imager_angles, channel_info, ecmwf, assume_full_path, include_full_brdf, &
      use_occci, use_swansea_climatology, swan_g, verbose, mcd43_maxqa, &
-     surface, source_atts)
+     surface, source_atts, netcdf_info)
 
    use channel_structures_m
    use cox_munk_m
@@ -156,6 +156,10 @@ subroutine get_surface_reflectance(cyear, cdoy, cmonth, modis_surf_path, &
    use ross_thick_li_sparse_r_m
    use source_attributes_m
    use surface_structures_m
+   use netcdf
+   use orac_ncdf_m
+   use global_attributes_m
+   use netcdf_output_m
 
    implicit none
 
@@ -180,6 +184,7 @@ subroutine get_surface_reflectance(cyear, cdoy, cmonth, modis_surf_path, &
    integer,                    intent(in)    :: mcd43_maxqa
    type(surface_t),            intent(inout) :: surface
    type(source_attributes_t),  intent(inout) :: source_atts
+   type(netcdf_output_info_t), intent(inout) :: netcdf_info
 
    ! Local variables
 
@@ -231,7 +236,8 @@ subroutine get_surface_reflectance(cyear, cdoy, cmonth, modis_surf_path, &
 #ifdef __INTEL_COMPILER
    type(ocean_colour_t), allocatable :: ocean_colour2(:,:)
 #endif
-
+   integer(kind=lint), allocatable   :: dummy_chan_vec1d(:)
+   integer,            allocatable   :: logical_column_as_int(:)
 
    if (verbose) write(*,*) '<<<<<<<<<<<<<<< Entering get_surface_reflectance()'
 
@@ -754,7 +760,7 @@ subroutine get_surface_reflectance(cyear, cdoy, cmonth, modis_surf_path, &
                end if
             end do
          end do
-
+         print*, minval(solza)
          do j = 1, nsea
             call cox_munk3_calc_shared_geo_wind(solza(j), satza(j), solaz(j), &
                  relaz(j), u10sea(j), v10sea(j), cox_munk_shared_geo_wind)
@@ -766,7 +772,6 @@ subroutine get_surface_reflectance(cyear, cdoy, cmonth, modis_surf_path, &
             end if
             do i = 1, n_bands
                ii = band_to_sw_index(i)
-
                call cox_munk3(bands(i), cox_munk_shared_geo_wind, &
                     ocean_colour(ii,i_oc), refsea(ii, j))
             end do
@@ -816,6 +821,174 @@ subroutine get_surface_reflectance(cyear, cdoy, cmonth, modis_surf_path, &
          deallocate(bands)
          deallocate(band_to_sw_index)
       end do
+
+
+   print*, netcdf_info%ncid_cox
+
+   if (channel_info%nchannels_sw .ne. 0) then
+      allocate(dummy_chan_vec1d(channel_info%nchannels_sw))
+      dummy_chan_vec1d=0_lint
+      ii = 1
+      do i = 1, channel_info%nchannels_total
+         if (channel_info%channel_sw_flag(i) .eq. 1) then
+            dummy_chan_vec1d(ii)=i
+            ii = ii+1
+         end if
+      end do
+
+      call ncdf_write_array( &
+           netcdf_info%ncid_cox, &
+           'alb_abs_ch_numbers', &
+           netcdf_info%vid_cox_alb_abs_ch_numbers, &
+           dummy_chan_vec1d, &
+           1, 1, channel_info%nchannels_sw)
+      deallocate(dummy_chan_vec1d)
+   end if
+
+
+   print*, size(ocean_colour%have_data, dim=1), size(ocean_colour%have_data, dim=2) 
+   allocate(logical_column_as_int(nsea))
+   logical_column_as_int=0_lint
+   if (channel_info%nchannels_sw .ne. 0) then
+      do i = 1, size(ocean_colour%have_data, dim=2)
+           if (ocean_colour(1, i)%have_data) then
+               logical_column_as_int(i) = 1
+           else
+               logical_column_as_int(i) = 0
+           end if
+       end do
+   else
+       print*, ocean_colour%have_data
+       !do i = 1, nsea
+       !    if (ocean_colour(i)%have_data) then
+       !        logical_column_as_int(i) = 1
+       !    else
+       !        logical_column_as_int(i) = 0
+       !    end if
+       !end do
+   end if
+
+   print*, size(ocean_colour, dim=1), size(ocean_colour, dim=2)
+   print*, ocean_colour%totabs
+   if (channel_info%nchannels_sw .ne. 0) then
+      call ncdf_write_array( &
+           netcdf_info%ncid_cox, &
+           'alb_data', &
+           netcdf_info%vid_cox_alb_data, &
+           refsea, &
+           1, 1, channel_info%nchannels_sw, &
+           1, 1, nsea)
+
+      call ncdf_write_array( &
+           netcdf_info%ncid_cox, &
+           'oc_wl', &
+           netcdf_info%vid_oc_wl, &
+           ocean_colour%wl, &
+           1, 1, channel_info%nchannels_sw, &
+           1, 1, nsea)
+
+      call ncdf_write_array( &
+           netcdf_info%ncid_cox, &
+           'oc_totabs', &
+           netcdf_info%vid_oc_ta, &
+           ocean_colour%totabs, &
+           1, 1, channel_info%nchannels_sw, &
+           1, 1, nsea)
+
+      call ncdf_write_array( &
+           netcdf_info%ncid_cox, &
+           'oc_totbsc', &
+           netcdf_info%vid_oc_tb, &
+           ocean_colour%totbsc, &
+           1, 1, channel_info%nchannels_sw, &
+           1, 1, nsea)
+
+      call ncdf_write_array( &
+           netcdf_info%ncid_cox, &
+           'oc_log', &
+           netcdf_info%vid_oc_log, &
+           logical_column_as_int, &
+           1, 1, nsea)
+
+      if (include_full_brdf) then
+         call ncdf_write_array( &
+              netcdf_info%ncid_cox, &
+              'rho_0v', &
+              netcdf_info%vid_cox_rho_0v_data, &
+              rhosea(:,:,1), &
+              1, 1, channel_info%nchannels_sw, &
+              1, 1, nsea)
+
+         call ncdf_write_array( &
+              netcdf_info%ncid_cox, &
+              'rho_0d', &
+              netcdf_info%vid_cox_rho_0d_data, &
+              rhosea(:,:,2), &
+              1, 1, channel_info%nchannels_sw, &
+              1, 1, nsea)
+
+         call ncdf_write_array( &
+              netcdf_info%ncid_cox, &
+              'rho_dv', &
+              netcdf_info%vid_cox_rho_dv_data, &
+              rhosea(:,:,3), &
+              1, 1, channel_info%nchannels_sw, &
+              1, 1, nsea)
+
+         call ncdf_write_array( &
+              netcdf_info%ncid_cox, &
+              'rho_dd', &
+              netcdf_info%vid_cox_rho_dd_data, &
+              rhosea(:,:,4), &
+              1, 1, channel_info%nchannels_sw, &
+              1, 1, nsea)
+      end if
+   end if
+
+   call ncdf_write_array( &
+        netcdf_info%ncid_cox, &
+        'u10_data', &
+        netcdf_info%vid_u10_data, &
+        u10sea, &
+        1, 1, nsea)
+
+   call ncdf_write_array( &
+        netcdf_info%ncid_cox, &
+        'v10_data', &
+        netcdf_info%vid_v10_data, &
+        v10sea, &
+        1, 1, nsea)
+
+   call ncdf_write_array( &
+        netcdf_info%ncid_cox, &
+        'solzen_data', &
+        netcdf_info%vid_cox_solzen, &
+        solza, &
+        1, 1, nsea)
+
+   call ncdf_write_array( &
+        netcdf_info%ncid_cox, &
+        'satzen_data', &
+        netcdf_info%vid_cox_satzen, &
+        satza, &
+        1, 1, nsea)
+
+   call ncdf_write_array( &
+        netcdf_info%ncid_cox, &
+        'solaz_data', &
+        netcdf_info%vid_cox_solaz, &
+        solaz, &
+        1, 1, nsea)
+
+   call ncdf_write_array( &
+        netcdf_info%ncid_cox, &
+        'relazi_data', &
+        netcdf_info%vid_cox_relazi, &
+        relaz, &
+        1, 1, nsea)
+
+   call ncdf_close(netcdf_info%ncid_cox, 'netcdf_create_config(): ".cox.nc"')
+
 
       ! Tidy up cox_munk input arrays
       deallocate(solza)

@@ -181,4 +181,17 @@ subroutine netcdf_output_check(output_path, paths, corrupt, use_seviri_ann_ctp_f
    end if
 #endif
 
+   if (verbose) write(*,*) 'Cox-munk file: ', trim(paths%cox_file)
+   if (nf90_open(path=trim(adjustl(output_path))//'/'//trim(adjustl(paths%cox_file)), &
+                 mode=NF90_NOWRITE, ncid=ncid) .ne. NF90_NOERR) then
+      write (*,*) 'ERROR: netcdf_output_check(): nf90_open(): ".cox.nc"'
+      corrupt = .true.
+      return
+   else
+      if (nf90_close(ncid) .ne. NF90_NOERR) then
+         write (*,*) 'ERROR: netcdf_create_config(): nf90_close(): ".cox.nc"'
+         stop error_stop_code
+      end if
+   end if
+
  end subroutine netcdf_output_check

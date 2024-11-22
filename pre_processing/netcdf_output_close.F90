@@ -44,6 +44,8 @@ subroutine netcdf_output_close(netcdf_info, use_seviri_ann_ctp_fg)
    call ncdf_close(netcdf_info%ncid_msi, 'netcdf_create_config(): ".msi.nc"')
    call ncdf_close(netcdf_info%ncid_prtm, 'netcdf_create_config(): ".prtm.nc"')
    call ncdf_close(netcdf_info%ncid_swrtm, 'netcdf_create_config(): ".swrtm.nc"')
+
+   !call ncdf_close(netcdf_info%ncid_cox, 'netcdf_create_config(): ".cox.nc"')
 #ifdef INCLUDE_SEVIRI_NEURALNET
    if (use_seviri_ann_ctp_fg) then
        call ncdf_close(netcdf_info%ncid_ctp, 'netcdf_create_config(): ".ctp.nc"')

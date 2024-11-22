@@ -53,7 +53,7 @@
 !-------------------------------------------------------------------------------
 
 subroutine netcdf_output_create(output_path, paths, granule, global_atts, &
-   source_atts, preproc_dims, imager_angles, imager_geolocation, netcdf_info, &
+   source_atts, preproc_dims, imager_angles, imager_geolocation, imager_flags, netcdf_info, &
    channel_info, include_full_brdf, nwp_flag, do_cloud_emis, &
    use_seviri_ann_ctp_fg, use_seviri_ann_mlay, verbose)
 
@@ -75,6 +75,7 @@ subroutine netcdf_output_create(output_path, paths, granule, global_atts, &
 
    type(imager_angles_t),      intent(in)    :: imager_angles
 
+   type(imager_flags_t),       intent(in)    :: imager_flags
    type(imager_geolocation_t), intent(in)    :: imager_geolocation
 
    type(netcdf_output_info_t), intent(inout) :: netcdf_info
@@ -87,107 +88,115 @@ subroutine netcdf_output_create(output_path, paths, granule, global_atts, &
    logical,                    intent(in)    :: verbose
 
 
-   ! Create config file
-   call netcdf_create_config(global_atts, source_atts, granule%cyear, &
-        granule%cmonth, granule%cday, granule%chour, granule%cminute, &
-        granule%platform, granule%sensor, &
-        trim(adjustl(output_path))//'/'//trim(adjustl(paths%config_file)), &
-        preproc_dims, imager_geolocation, netcdf_info, channel_info, verbose)
+!   ! Create config file
+!   call netcdf_create_config(global_atts, source_atts, granule%cyear, &
+!        granule%cmonth, granule%cday, granule%chour, granule%cminute, &
+!        granule%platform, granule%sensor, &
+!        trim(adjustl(output_path))//'/'//trim(adjustl(paths%config_file)), &
+!        preproc_dims, imager_geolocation, netcdf_info, channel_info, verbose)
 
 
    ! Create RTM files
 
    ! create prtm file
-   call netcdf_create_rtm(global_atts, source_atts, granule%cyear, &
-        granule%cmonth, granule%cday, granule%chour, &
-        granule%cminute, granule%platform, granule%sensor, &
-        trim(adjustl(output_path))//'/'//trim(adjustl(paths%prtm_file)), &
-        NETCDF_OUTPUT_FILE_PRTM, preproc_dims, netcdf_info, channel_info, &
-        nwp_flag, verbose)
+!   call netcdf_create_rtm(global_atts, source_atts, granule%cyear, &
+!        granule%cmonth, granule%cday, granule%chour, &
+!        granule%cminute, granule%platform, granule%sensor, &
+!        trim(adjustl(output_path))//'/'//trim(adjustl(paths%prtm_file)), &
+!        NETCDF_OUTPUT_FILE_PRTM, preproc_dims, netcdf_info, channel_info, &
+!        nwp_flag, verbose)
 
    ! create lwrtm file
-   call netcdf_create_rtm(global_atts, source_atts, granule%cyear, &
-        granule%cmonth, granule%cday, granule%chour, &
-        granule%cminute, granule%platform, granule%sensor, &
-        trim(adjustl(output_path))//'/'//trim(adjustl(paths%lwrtm_file)), &
-        NETCDF_OUTPUT_FILE_LWRTM, preproc_dims, netcdf_info, channel_info, &
-        nwp_flag, verbose)
+!   call netcdf_create_rtm(global_atts, source_atts, granule%cyear, &
+!        granule%cmonth, granule%cday, granule%chour, &
+!        granule%cminute, granule%platform, granule%sensor, &
+!        trim(adjustl(output_path))//'/'//trim(adjustl(paths%lwrtm_file)), &
+!        NETCDF_OUTPUT_FILE_LWRTM, preproc_dims, netcdf_info, channel_info, &
+!        nwp_flag, verbose)
 
    ! create swrtm file
-   call netcdf_create_rtm(global_atts, source_atts, granule%cyear, &
-        granule%cmonth, granule%cday, granule%chour, &
-        granule%cminute, granule%platform, granule%sensor, &
-        trim(adjustl(output_path))//'/'//trim(adjustl(paths%swrtm_file)), &
-        NETCDF_OUTPUT_FILE_SWRTM, preproc_dims, netcdf_info, channel_info, &
-        nwp_flag, verbose)
+!   call netcdf_create_rtm(global_atts, source_atts, granule%cyear, &
+!        granule%cmonth, granule%cday, granule%chour, &
+!        granule%cminute, granule%platform, granule%sensor, &
+!        trim(adjustl(output_path))//'/'//trim(adjustl(paths%swrtm_file)), &
+!        NETCDF_OUTPUT_FILE_SWRTM, preproc_dims, netcdf_info, channel_info, &
+!        nwp_flag, verbose)
 
 
    ! Create swath based files
 
    ! create alb file
-   call netcdf_create_swath(global_atts, source_atts, granule%cyear, &
-        granule%cmonth, granule%cday, granule%chour, &
-        granule%cminute, granule%platform, granule%sensor, &
-        trim(adjustl(output_path))//'/'//trim(adjustl(paths%alb_file)), &
-        NETCDF_OUTPUT_FILE_ABL, imager_geolocation, imager_angles, &
-        netcdf_info, channel_info, include_full_brdf, do_cloud_emis, &
-        use_seviri_ann_mlay, verbose)
+!   call netcdf_create_swath(global_atts, source_atts, granule%cyear, &
+!        granule%cmonth, granule%cday, granule%chour, &
+!        granule%cminute, granule%platform, granule%sensor, &
+!        trim(adjustl(output_path))//'/'//trim(adjustl(paths%alb_file)), &
+!        NETCDF_OUTPUT_FILE_ABL, imager_geolocation, imager_angles, &
+!        netcdf_info, channel_info, include_full_brdf, do_cloud_emis, &
+!        use_seviri_ann_mlay, verbose)
 
    ! create clf file
-   call netcdf_create_swath(global_atts, source_atts, granule%cyear, &
-        granule%cmonth, granule%cday, granule%chour, &
-        granule%cminute, granule%platform, granule%sensor, &
-        trim(adjustl(output_path))//'/'//trim(adjustl(paths%cf_file)), &
-        NETCDF_OUTPUT_FILE_CLF, imager_geolocation, imager_angles, &
-        netcdf_info, channel_info, include_full_brdf, do_cloud_emis, &
-        use_seviri_ann_mlay, verbose)
+!   call netcdf_create_swath(global_atts, source_atts, granule%cyear, &
+!        granule%cmonth, granule%cday, granule%chour, &
+!        granule%cminute, granule%platform, granule%sensor, &
+!        trim(adjustl(output_path))//'/'//trim(adjustl(paths%cf_file)), &
+!        NETCDF_OUTPUT_FILE_CLF, imager_geolocation, imager_angles, &
+!        netcdf_info, channel_info, include_full_brdf, do_cloud_emis, &
+!        use_seviri_ann_mlay, verbose)
 
    ! create geo file
-   call netcdf_create_swath(global_atts, source_atts, granule%cyear, &
-        granule%cmonth, granule%cday, granule%chour, &
-        granule%cminute, granule%platform, granule%sensor, &
-        trim(adjustl(output_path))//'/'//trim(adjustl(paths%geo_file)), &
-        NETCDF_OUTPUT_FILE_GEO, imager_geolocation, imager_angles, &
-        netcdf_info, channel_info, include_full_brdf, do_cloud_emis, &
-        use_seviri_ann_mlay, verbose)
+!   call netcdf_create_swath(global_atts, source_atts, granule%cyear, &
+!        granule%cmonth, granule%cday, granule%chour, &
+!        granule%cminute, granule%platform, granule%sensor, &
+!        trim(adjustl(output_path))//'/'//trim(adjustl(paths%geo_file)), &
+!        NETCDF_OUTPUT_FILE_GEO, imager_geolocation, imager_angles, &
+!        netcdf_info, channel_info, include_full_brdf, do_cloud_emis, &
+!        use_seviri_ann_mlay, verbose)
 
    ! create loc file
-   call netcdf_create_swath(global_atts, source_atts, granule%cyear, &
-        granule%cmonth, granule%cday, granule%chour, &
-        granule%cminute, granule%platform, granule%sensor, &
-        trim(adjustl(output_path))//'/'//trim(adjustl(paths%loc_file)), &
-        NETCDF_OUTPUT_FILE_LOC, imager_geolocation, imager_angles, &
-        netcdf_info, channel_info, include_full_brdf, do_cloud_emis, &
-        use_seviri_ann_mlay, verbose)
+!   call netcdf_create_swath(global_atts, source_atts, granule%cyear, &
+!        granule%cmonth, granule%cday, granule%chour, &
+!        granule%cminute, granule%platform, granule%sensor, &
+!        trim(adjustl(output_path))//'/'//trim(adjustl(paths%loc_file)), &
+!        NETCDF_OUTPUT_FILE_LOC, imager_geolocation, imager_angles, &
+!        netcdf_info, channel_info, include_full_brdf, do_cloud_emis, &
+!        use_seviri_ann_mlay, verbose)
 
    ! create lsf file
-   call netcdf_create_swath(global_atts, source_atts, granule%cyear, &
-        granule%cmonth, granule%cday, granule%chour, &
-        granule%cminute, granule%platform, granule%sensor, &
-        trim(adjustl(output_path))//'/'//trim(adjustl(paths%lsf_file)), &
-        NETCDF_OUTPUT_FILE_LSF, imager_geolocation, imager_angles, &
-        netcdf_info, channel_info, include_full_brdf, do_cloud_emis, &
-        use_seviri_ann_mlay, verbose)
+!   call netcdf_create_swath(global_atts, source_atts, granule%cyear, &
+!        granule%cmonth, granule%cday, granule%chour, &
+!        granule%cminute, granule%platform, granule%sensor, &
+!        trim(adjustl(output_path))//'/'//trim(adjustl(paths%lsf_file)), &
+!        NETCDF_OUTPUT_FILE_LSF, imager_geolocation, imager_angles, &
+!        netcdf_info, channel_info, include_full_brdf, do_cloud_emis, &
+!        use_seviri_ann_mlay, verbose)
 
    ! create msi file
-   call netcdf_create_swath(global_atts, source_atts, granule%cyear, &
+!   call netcdf_create_swath(global_atts, source_atts, granule%cyear, &
+!        granule%cmonth, granule%cday, granule%chour, &
+!        granule%cminute, granule%platform, granule%sensor, &
+!        trim(adjustl(output_path))//'/'//trim(adjustl(paths%msi_file)), &
+!        NETCDF_OUTPUT_FILE_MSI, imager_geolocation, imager_angles, &
+!        netcdf_info, channel_info, include_full_brdf, do_cloud_emis, &
+!        use_seviri_ann_mlay, verbose)
+
+!   if (use_seviri_ann_ctp_fg) then
+!       ! create ctp file
+!       call netcdf_create_swath(global_atts, source_atts, granule%cyear, &
+!            granule%cmonth, granule%cday, granule%chour, &
+!            granule%cminute, granule%platform, granule%sensor, &
+!            trim(adjustl(output_path))//'/'//trim(adjustl(paths%ctp_file)), &
+!            NETCDF_OUTPUT_FILE_CTP, imager_geolocation, imager_angles, &
+!            netcdf_info, channel_info, include_full_brdf, do_cloud_emis, &
+!            use_seviri_ann_mlay, verbose)
+!   end if
+
+   ! create cox file
+   call netcdf_create_cox(global_atts, source_atts, granule%cyear, &
         granule%cmonth, granule%cday, granule%chour, &
         granule%cminute, granule%platform, granule%sensor, &
-        trim(adjustl(output_path))//'/'//trim(adjustl(paths%msi_file)), &
-        NETCDF_OUTPUT_FILE_MSI, imager_geolocation, imager_angles, &
-        netcdf_info, channel_info, include_full_brdf, do_cloud_emis, &
-        use_seviri_ann_mlay, verbose)
-
-   if (use_seviri_ann_ctp_fg) then
-       ! create ctp file
-       call netcdf_create_swath(global_atts, source_atts, granule%cyear, &
-            granule%cmonth, granule%cday, granule%chour, &
-            granule%cminute, granule%platform, granule%sensor, &
-            trim(adjustl(output_path))//'/'//trim(adjustl(paths%ctp_file)), &
-            NETCDF_OUTPUT_FILE_CTP, imager_geolocation, imager_angles, &
-            netcdf_info, channel_info, include_full_brdf, do_cloud_emis, &
-            use_seviri_ann_mlay, verbose)
-   end if
+        trim(adjustl(output_path))//'/'//trim(adjustl(paths%cox_file)), &
+        NETCDF_OUTPUT_FILE_COX, imager_angles, imager_geolocation, imager_flags, &
+        netcdf_info, channel_info, include_full_brdf, verbose)
 
 
 end subroutine netcdf_output_create

@@ -847,7 +847,7 @@ subroutine netcdf_create_swath(global_atts, source_atts, cyear, cmonth, cday, ch
       dimids_3d(1) = netcdf_info%dimid_x_cf
       dimids_3d(2) = netcdf_info%dimid_y_cf
       dimids_3d(3) = netcdf_info%dimid_v_cf
-
+      print*, netcdf_info%dimid_x_cf
       ! define cflag
       call ncdf_def_var_byte_packed_byte( &
            netcdf_info%ncid_clf, &
@@ -1806,3 +1806,262 @@ subroutine netcdf_put_common_attributes(ncid, global_atts, source_atts, title, &
 
 
 end subroutine netcdf_put_common_attributes
+
+
+subroutine netcdf_create_cox(global_atts, source_atts, cyear, cmonth, cday, chour, &
+     cminute, platform, sensor, path, type, imager_angles, imager_geolocation, imager_flags, &
+     netcdf_info, channel_info, include_full_brdf, &
+     verbose)
+
+   use netcdf
+
+   use channel_structures_m
+   use global_attributes_m
+   use imager_structures_m
+   use orac_ncdf_m
+   use preproc_constants_m
+   use source_attributes_m
+
+   implicit none
+
+   ! Input
+   type(global_attributes_t),  intent(in)    :: global_atts
+   type(source_attributes_t),  intent(in)    :: source_atts
+   character(len=*),           intent(in)    :: cyear
+   character(len=*),           intent(in)    :: cmonth
+   character(len=*),           intent(in)    :: cday
+   character(len=*),           intent(in)    :: chour
+   character(len=*),           intent(in)    :: cminute
+   character(len=*),           intent(in)    :: platform
+   character(len=*),           intent(in)    :: sensor
+   character(len=*),           intent(in)    :: path
+   integer,                    intent(in)    :: type
+   type(imager_angles_t),      intent(in)    :: imager_angles
+   type(imager_geolocation_t), intent(in)    :: imager_geolocation
+   type(imager_flags_t),       intent(in)    :: imager_flags
+   type(netcdf_output_info_t), intent(inout) :: netcdf_info
+   type(channel_info_t),       intent(in)    :: channel_info
+   logical,                    intent(in)    :: include_full_brdf
+   logical,                    intent(in)    :: verbose
+   ! Local
+   character(len=file_length) :: ctitle
+   integer                    :: ncid
+   integer                    :: dimids_1d(1)
+   integer                    :: dimids_2d(2)
+   logical,            allocatable   :: mask(:,:)
+   integer                           :: k
+
+   if (type .eq. NETCDF_OUTPUT_FILE_COX) then
+
+      ctitle = 'ORAC Preprocessing cox output file'
+
+
+      ! create file
+      if (nf90_create(path, IOR(NF90_HDF5, NF90_CLASSIC_MODEL), &
+                      netcdf_info%ncid_cox) .ne. NF90_NOERR) then
+         write(*,*) 'ERROR: netcdf_create_swath(1), nf90_create(), filename: ', &
+              path
+         stop error_stop_code
+      end if
+
+
+      ! define dimensions
+
+      if (nf90_def_dim(netcdf_info%ncid_cox, 'nc_alb', &
+                       9, netcdf_info%dimid_c_alb_cox) &
+           .ne. NF90_NOERR) then
+         write(*,*) 'ERROR: netcdf_create_swath(1), nf90_create(), ' // &
+              'dimension name: nc_alb'
+         stop error_stop_code
+      end if
+
+      if (nf90_def_dim(netcdf_info%ncid_cox, 'nx_cox', &
+                       10000, &
+                       netcdf_info%dimid_sea_cox) .ne. NF90_NOERR) then
+         write(*,*) 'ERROR: netcdf_create_swath(1), nf90_create(), ' // &
+              'dimension name: nx_alb'
+         stop error_stop_code
+      end if
+
+      if (channel_info%nchannels_sw .ne. 0) then
+         dimids_1d(1) = netcdf_info%dimid_c_alb_cox
+
+         call ncdf_def_var_long_packed_long( &
+              netcdf_info%ncid_cox, &
+              dimids_1d, &
+              'alb_abs_ch_numbers', &
+              netcdf_info%vid_cox_alb_abs_ch_numbers, &
+              verbose, &
+              fill_value = lint_fill_value)
+      end if
+
+      if (channel_info%nchannels_sw .ne. 0) then
+         dimids_2d(1) = netcdf_info%dimid_c_alb_cox
+         dimids_2d(2) = netcdf_info%dimid_sea_cox
+         dimids_1d(1) = netcdf_info%dimid_sea_cox
+         print*, netcdf_info%dimid_c_alb_cox,netcdf_info%dimid_sea_cox, dimids_2d(1), dimids_2d(2) 
+
+         ! define alb
+         call ncdf_def_var_float_packed_float( &
+              netcdf_info%ncid_cox, &
+              dimids_1d, &
+              'u10_data', &
+              netcdf_info%vid_u10_data, &
+              verbose, &
+              deflate_level = deflate_level, &
+              shuffle = shuffle_flag, &
+              fill_value = sreal_fill_value)
+
+         call ncdf_def_var_float_packed_float( &
+              netcdf_info%ncid_cox, &
+              dimids_1d, &
+              'v10_data', &
+              netcdf_info%vid_v10_data, &
+              verbose, &
+              deflate_level = deflate_level, &
+              shuffle = shuffle_flag, &
+              fill_value = sreal_fill_value)
+
+         call ncdf_def_var_long_packed_long( &
+              netcdf_info%ncid_cox, &
+              dimids_1d, &
+              'oc_log', &
+              netcdf_info%vid_oc_log, &
+              verbose, &
+              deflate_level = deflate_level, &
+              shuffle = shuffle_flag, &
+              fill_value = lint_fill_value)
+         print*, 'here'
+         call ncdf_def_var_float_packed_float( &
+              netcdf_info%ncid_cox, &
+              dimids_2d, &
+              'oc_totabs', &
+              netcdf_info%vid_oc_ta, &
+              verbose, &
+              deflate_level = deflate_level, &
+              shuffle = shuffle_flag, &
+              fill_value = sreal_fill_value)
+         print*, dimids_2d
+
+         call ncdf_def_var_float_packed_float( &
+              netcdf_info%ncid_cox, &
+              dimids_2d, &
+              'oc_totbsc', &
+              netcdf_info%vid_oc_tb, &
+              verbose, &
+              deflate_level = deflate_level, &
+              shuffle = shuffle_flag, &
+              fill_value = sreal_fill_value)
+
+         call ncdf_def_var_float_packed_float( &
+              netcdf_info%ncid_cox, &
+              dimids_1d, &
+              'solzen_data', &
+              netcdf_info%vid_cox_solzen, &
+              verbose, &
+              deflate_level = deflate_level, &
+              shuffle = shuffle_flag, &
+              fill_value = sreal_fill_value)
+
+         call ncdf_def_var_float_packed_float( &
+              netcdf_info%ncid_cox, &
+              dimids_1d, &
+              'satzen_data', &
+              netcdf_info%vid_cox_satzen, &
+              verbose, &
+              deflate_level = deflate_level, &
+              shuffle = shuffle_flag, &
+              fill_value = sreal_fill_value)
+
+
+         call ncdf_def_var_float_packed_float( &
+              netcdf_info%ncid_cox, &
+              dimids_1d, &
+              'solaz_data', &
+              netcdf_info%vid_cox_solaz, &
+              verbose, &
+              deflate_level = deflate_level, &
+              shuffle = shuffle_flag, &
+              fill_value = sreal_fill_value)
+
+         call ncdf_def_var_float_packed_float( &
+              netcdf_info%ncid_cox, &
+              dimids_1d, &
+              'relazi_data', &
+              netcdf_info%vid_cox_relazi, &
+              verbose, &
+              deflate_level = deflate_level, &
+              shuffle = shuffle_flag, &
+              fill_value = sreal_fill_value)
+         dimids_2d(1) = netcdf_info%dimid_c_alb_cox
+         dimids_2d(2) = netcdf_info%dimid_sea_cox
+         call ncdf_def_var_float_packed_float( &
+              netcdf_info%ncid_cox, &
+              dimids_2d, &
+              'alb_data', &
+              netcdf_info%vid_cox_alb_data, &
+              verbose, &
+              deflate_level = deflate_level, &
+              shuffle = shuffle_flag, &
+              fill_value = sreal_fill_value)
+
+         if (include_full_brdf) then
+            call ncdf_def_var_float_packed_float( &
+                 netcdf_info%ncid_cox, &
+                 dimids_2d, &
+                 'rho_0v_data', &
+                 netcdf_info%vid_cox_rho_0v_data, &
+                 verbose, &
+                 deflate_level = deflate_level, &
+                 shuffle = shuffle_flag, &
+                 fill_value = sreal_fill_value)
+
+            call ncdf_def_var_float_packed_float( &
+                 netcdf_info%ncid_cox, &
+                 dimids_2d, &
+                 'rho_0d_data', &
+                 netcdf_info%vid_cox_rho_0d_data, &
+                 verbose, &
+                 deflate_level = deflate_level, &
+                 shuffle = shuffle_flag, &
+                 fill_value = sreal_fill_value)
+
+            call ncdf_def_var_float_packed_float( &
+                 netcdf_info%ncid_cox, &
+                 dimids_2d, &
+                 'rho_dv_data', &
+                 netcdf_info%vid_cox_rho_dv_data, &
+                 verbose, &
+                 deflate_level = deflate_level, &
+                 shuffle = shuffle_flag, &
+                 fill_value = sreal_fill_value)
+
+            call ncdf_def_var_float_packed_float( &
+                 netcdf_info%ncid_cox, &
+                 dimids_2d, &
+                 'rho_dd_data', &
+                 netcdf_info%vid_cox_rho_dd_data, &
+                 verbose, &
+                 deflate_level = deflate_level, &
+                 shuffle = shuffle_flag, &
+                 fill_value = sreal_fill_value)
+         end if
+      end if
+   end if
+
+   ! set up attributes common to all output files
+   if (type .eq. NETCDF_OUTPUT_FILE_COX) ncid = netcdf_info%ncid_cox
+
+   call netcdf_put_common_attributes(ncid, global_atts, source_atts, ctitle, &
+        platform, sensor, path, cyear, cmonth, cday, &
+        chour, cminute)
+
+
+   ! close definition section
+   if (nf90_enddef(ncid) .ne. NF90_NOERR) then
+      write (*,*) 'ERROR: netcdf_create_swath(): nf90_enddef()'
+      stop error_stop_code
+   end if
+
+end subroutine netcdf_create_cox
+

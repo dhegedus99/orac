@@ -184,6 +184,7 @@ module preproc_structures_m
       character(len=file_length) :: prtm_file   ! Atmospheric RTTOV inputs
       character(len=file_length) :: swrtm_file  ! Shortwave RTTOV inputs
       character(len=file_length) :: ctp_file    ! CTP for first guess
+      character(len=file_length) :: cox_file    ! Cox-munk training data
    end type preproc_paths_t
 
 

@@ -49,6 +49,7 @@ PREPROC_OBJ_F90 = $(OBJS)/aatsr_corrections.o \
                   $(OBJS)/calender.o \
                   $(OBJS)/channel_structures.o \
                   $(OBJS)/cloud_emis.o \
+                  $(OBJS)/cox_munk_td.o \
                   $(OBJS)/cloud_typing_pavolonis.o \
                   $(OBJS)/correct_for_ice_snow.o \
                   $(OBJS)/correct_for_dust.o \
