@@ -1157,7 +1157,7 @@ subroutine cox_munk3_calc_shared_geo_wind(solza, satza, solaz, relaz, u10, v10, 
 
    ! Slope distribution
    shared%p = exp(-0.5*(zeta*zeta + eta*eta)) / (2.0*pi*sigx*sigy)
-
+   !if (shared%p .gt. 5) print*, 'shared%p', shared%p, zeta, eta, sigx, sigy, ws, Zx, Zy
    ! Cox and Munk (1954) (Measurements of...)
    ! 2*omega = angle between incident light and instrument, wrt the sloping sea
    ! surface
@@ -1180,6 +1180,7 @@ subroutine cox_munk3_calc_shared_geo_wind(solza, satza, solaz, relaz, u10, v10, 
    shared%ergodic = zeisse_ba3(d2r * satza, shared%cos_satza, ws)
 
    shared%a = 4.0*shared%cos_solza*shared%ergodic*(shared%cosbeta**4)
+   !if (shared%a .lt. 0) print*,'shared%a', shared%a, shared%cos_solza, shared%ergodic, shared%cosbeta, solza, satza
 
 end subroutine cox_munk3_calc_shared_geo_wind
 
@@ -1327,14 +1328,19 @@ subroutine cox_munk3(i_band, shared_geo_wind, ocean_colour, rho)
       rhogl = pi * shared_geo_wind%p * R_sf / shared_geo_wind%a
    else
       rhogl = 0.0
+      
    end if
 
-
+   !if (rho .gt. 1.) print*, rhogl, shared_geo_wind%p, shared_geo_wind%a
    !----------------------------------------------------------------------------
    ! Add all the reflectance terms to produce the full surface reflectance
    !----------------------------------------------------------------------------
    rho = rhowc + (1-shared_geo_wind%wcfrac)*(rhogl + rhoul)
-
+   !if (shared_geo_wind%a .le. 0) then
+   !   print*, rho, rhowc, shared_geo_wind%wcfrac,rhogl, rhoul, R_sf, shared_geo_wind%a,shared_geo_wind%p
+   !end if
+   !if (shared_geo_wind%a .lt. 0.) print*, rho, abs(shared_geo_wind%a), rhogl+rhoul, shared_geo_wind%p, t_u, t_d, R_wb,r_u, wprime, w
+   !if (abs(rhogl) .gt. rhoul .and. rhogl .lt. 0.) print*, rho, abs(shared_geo_wind%a), rhogl+rhoul, shared_geo_wind%p, t_u, t_d, R_wb,r_u
 end subroutine cox_munk3
 
 

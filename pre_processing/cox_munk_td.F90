@@ -124,21 +124,15 @@ subroutine get_cm_td(cyear, cdoy, cmonth, modis_surf_path, &
          allocate(lonsea(nsea))
       end if
 
-
-
       !call generate_uniform(nsea, 0., 20., satza)
       !call generate_uniform(nsea, 0., 20., solza)
       !call generate_uniform(nsea, 0., 20., solaz)
       !call generate_uniform(nsea, 0., 20., relaz)
-      print*, minval(satza), maxval(satza)
-      print*, minval(solza), maxval(solza)
-      print*, minval(solaz), maxval(solaz)
-      print*, minval(relaz), maxval(relaz)
-      do i=1, nsea
-          call correlated_angles(solza(i), satza(i), solaz(i), relaz(i))
+      !do i=1, nsea
+      !    call correlated_angles(solza(i), satza(i), solaz(i), relaz(i))
           !print*, solza
-      end do
-
+      !end do
+      call generate_viewing_geometry(nsea, solza, satza, solaz,relaz)
       print*, minval(satza), maxval(satza)
       print*, minval(solza), maxval(solza)
       print*, minval(solaz), maxval(solaz)
@@ -146,33 +140,35 @@ subroutine get_cm_td(cyear, cdoy, cmonth, modis_surf_path, &
        
       call generate_gaussian(0.0, 5., nsea, u10sea)
       call generate_gaussian(0.0, 5., nsea, v10sea)
+      call replace_high_wind_speeds(solza, u10sea, v10sea,4., nsea)
       print*, minval(u10sea), maxval(u10sea)
       print*, minval(v10sea), maxval(v10sea)
 
-      print*, solza
       call generate_correlated_lognormal(nsea, 0.0536, 0.1787, 0.0029, 0.0162, 0.57, ocean_colour(1,:)%totabs, ocean_colour(1,:)%totbsc) 
       call generate_correlated_lognormal(nsea, 0.0594, 0.0689, 0.0022, 0.0152, 0.67, ocean_colour(2,:)%totabs, ocean_colour(2,:)%totbsc) 
       call generate_correlated_lognormal(nsea, 0.5756, 0.4199, 0.0018, 0.0156, 0.02, ocean_colour(3,:)%totabs, ocean_colour(3,:)%totbsc)  
-      print*, minval(ocean_colour(1,:)%totabs), maxval(ocean_colour(1,:)%totabs), minval(ocean_colour(1,:)%totbsc), maxval(ocean_colour(1,:)%totbsc)  
-      print*, minval(ocean_colour(2,:)%totabs), maxval(ocean_colour(2,:)%totabs), minval(ocean_colour(2,:)%totbsc), maxval(ocean_colour(2,:)%totbsc)  
-      print*, minval(ocean_colour(3,:)%totabs), maxval(ocean_colour(3,:)%totabs), minval(ocean_colour(3,:)%totbsc), maxval(ocean_colour(3,:)%totbsc)
      do i = 4, n_coxbands
          ocean_colour(i,:)%totabs = totalabs(i)
          ocean_colour(i,:)%totbsc = totalbsc(i) 
      end do
      do i = 1, 3
-         ocean_colour(i,:)%totabs = totalabs(i) + baseabs(i)
-         ocean_colour(i,:)%totbsc = totalbsc(i) + basebsc(i) 
+         ocean_colour(i,:)%totabs = ocean_colour(i,:)%totabs + baseabs(i)
+         ocean_colour(i,:)%totbsc = ocean_colour(i,:)%totbsc + basebsc(i) 
      end do
          ocean_colour(:,1)%have_data = .true.
+         !ocean_colour(:,:)%totabs = ocean_colour(:,:)%totabs + baseabs(i)
 
          do j = 1, nsea
             call cox_munk3_calc_shared_geo_wind(solza(j), satza(j), solaz(j), &
                  relaz(j), u10sea(j), v10sea(j), cox_munk_shared_geo_wind)
 
             do i = 1, n_coxbands
+               
                call cox_munk3(coxbands(i), cox_munk_shared_geo_wind, &
                     ocean_colour(i,j), refsea(i, j))
+               if (solza(j) .gt. 90.) then
+                   print*, refsea(i,j), solza(j), u10sea(j), v10sea(j), sqrt(u10sea(j)*u10sea(j) + v10sea(j)*v10sea(j))
+               end if
             end do
          end do
 
@@ -201,8 +197,12 @@ subroutine get_cm_td(cyear, cdoy, cmonth, modis_surf_path, &
                  solaz(:), relaz(:), ocean_colour(coxbands,:), &
                  u10sea, v10sea, sreal_fill_value, tmprho(:,:,1), &
                  tmprho(:,:,2), tmprho(:,:,3), tmprho(:,:,4), verbose)
-#endif
-
+#endif      
+            do i = 1, n_coxbands
+               write(*,*) 'Sea refl: sw_index, wvl, min, max = ', i, &
+                    minval(tmprho(i,:,1)), maxval(tmprho(i,:,1)),minval(tmprho(i,:,2)), maxval(tmprho(i,:,2)),minval(tmprho(i,:,3)), maxval(tmprho(i,:,3)),minval(tmprho(i,:,4)), maxval(tmprho(i,:,4))
+            end do
+            
             do i = 1, n_coxbands
                rhosea(coxbands(i),:,:) = tmprho(i,:,:)
             end do
@@ -409,6 +409,58 @@ subroutine generate_gaussian(mean, stddev, n, x)
 
 end subroutine generate_gaussian
 
+subroutine replace_high_wind_speeds2(solzen, u10, v10, limit, limit2,limit3, n)
+    implicit none
+    integer, intent(in) :: n                ! Number of samples
+    real, intent(in) :: solzen(n)           ! Solar zenith angles
+    real, intent(inout) :: u10(n), v10(n)   ! Eastward and northward wind speeds
+    real, intent(in) :: limit, limit2, limit3               ! Wind speed limit
+    integer :: i
+
+    do i = 1, n
+        if (solzen(i) > 90.0) then
+            ! Replace values exceeding the limit with random values within the allowed range
+            if (u10(i) > limit .or. u10(i) < -limit) then
+                call random_number(v10(i))
+                call random_number(u10(i))
+                v10(i) = -limit2 + v10(i) * (2.0 * limit2)
+                u10(i) = -limit3 + u10(i) * (2.0 * limit3)
+                print*, v10(i), u10(i)
+            end if
+            if (v10(i) > limit .or. v10(i) < -limit) then
+                call random_number(u10(i))
+                call random_number(v10(i))
+                u10(i) = -limit2 + u10(i) * (2.0 * limit2)
+                v10(i) = -limit3 + v10(i) * (2.0 * limit3)
+            end if
+        end if
+    end do
+end subroutine replace_high_wind_speeds2
+
+subroutine replace_high_wind_speeds(solzen, u10, v10, limit, n)
+    implicit none
+    integer, intent(in) :: n                ! Number of samples
+    real, intent(in) :: solzen(n)           ! Solar zenith angles
+    real, intent(inout) :: u10(n), v10(n)   ! Eastward and northward wind speeds
+    real, intent(in) :: limit               ! Wind speed limit
+    integer :: i
+
+    do i = 1, n
+        if (solzen(i) > 90.0) then
+            ! Replace values exceeding the limit with random values within the allowed range
+            if (u10(i) > limit .or. u10(i) < -limit) then
+                call random_number(u10(i))
+                u10(i) = -limit + u10(i) * (2.0 * limit)
+            end if
+            if (v10(i) > limit .or. v10(i) < -limit) then
+                call random_number(v10(i))
+                v10(i) = -limit + v10(i) * (2.0 * limit)
+            end if
+        end if
+    end do
+end subroutine replace_high_wind_speeds
+
+
 subroutine generate_uniform(n, min_val, max_val, x)
     implicit none
     integer,  intent(in) :: n
@@ -427,13 +479,13 @@ subroutine generate_uniform(n, min_val, max_val, x)
 
 end subroutine generate_uniform
 
-subroutine generate_correlated_lognormal(n,mean1, stddev1, mean2, stddev2, corr, x1, x2)
+subroutine generate_correlated_lognormal(n, mean1, stddev1, mean2, stddev2, corr, x1, x2)
     implicit none
-    integer,  intent(in) :: n
-    real,  intent(in) ::  mean1, stddev1, mean2, stddev2, corr
-    real,  intent(out) :: x1(n), x2(n)
+    integer, intent(in) :: n
+    real, intent(in) :: mean1, stddev1, mean2, stddev2, corr
+    real, intent(out) :: x1(n), x2(n)
     real :: log_mean1, log_stddev1, log_mean2, log_stddev2
-    real :: u1, u2, z1, z2 
+    real :: u1, u2, z1, z2, z2_adjusted
     integer :: i
 
     ! Calculate the parameters for the underlying normal distributions
@@ -458,11 +510,16 @@ subroutine generate_correlated_lognormal(n,mean1, stddev1, mean2, stddev2, corr,
         ! Introduce the desired correlation
         z2 = corr * z1 + sqrt(1.0 - corr**2) * z2
 
+        ! Adjust z2 to ensure the constraint z2 < z1 in the normal space
+        if (z2 >= z1) then
+            z2_adjusted = z1 - abs(z2 - z1)
+            z2 = z2_adjusted
+        end if
+
         ! Scale and shift to create the two log-normal distributions
         x1(i) = exp(log_mean1 + log_stddev1 * z1)
         x2(i) = exp(log_mean2 + log_stddev2 * z2)
     end do
-
 
 end subroutine generate_correlated_lognormal
 
@@ -483,10 +540,10 @@ subroutine correlated_angles(solza, satza, solaz,relaz)
     external :: dpotrf
 
 
-    R = reshape([1.0d0, -0.47d0, -0.42d0, -0.62d0, &
-                 -0.47d0, 1.0d0, 0.0d0, 0.0d0, &
-                 -0.42d0, 0.0d0, 1.0d0, 0.32d0, &
-                 -0.62d0, 0.0d0, 0.32d0, 1.0d0], [4,4])
+    R = reshape([1.0d0, -0.1d0, 0.42d0, -0.75d0, &
+                 -0.1d0, 1.0d0, -0.3d0, 0.03d0, &
+                 -0.42d0, -0.3d0, 1.0d0, -0.1d0, &
+                 -0.75d0, 0.03d0, -0.1d0, 1.0d0], [4,4])
 
     ! Set means and standard deviations
     mu = [0.0d0, 0.0d0, 0.0d0, 0.0d0]
@@ -507,10 +564,12 @@ subroutine correlated_angles(solza, satza, solaz,relaz)
     ! Map x values to angles
     solza = map_to_range(x(1), 0.01, 70.)
     satza = map_to_range(x(2), 0., 70.)
-    solaz = map_to_range(x(3), 0., 360.)
-    sataz = map_to_range(x(4), 0., 360.)
-    relaz = abs(solaz - sataz)
-    if (relaz > 180) relaz = 360 - relaz
+    solaz = map_to_range(x(3), -90., 90.)
+    relaz = map_to_range(x(4), 0., 90.)
+    !relaz = abs(solaz - sataz)
+    !if (relaz > 180) relaz = 360 - relaz
+    !if (relaz > 160) print*, solaz, sataz
+
 
 contains
 
@@ -521,3 +580,56 @@ contains
     end function map_to_range
 
 end subroutine correlated_angles
+
+subroutine generate_viewing_geometry(n, solzen, satzen, solaz,relaz)
+    implicit none
+
+    integer, intent(in) :: n ! Number of samples
+    real, intent(out) :: solzen(n), satzen(n), solaz(n), relaz(n)
+    real :: sataz(n)
+    integer :: i
+
+    ! Seed the random number generator
+    call random_seed()
+
+    ! Generate solar zenith angles (solzen) uniformly in [0, 85)
+    call random_number(solzen)
+    solzen = solzen * 85.0d0
+
+    ! Generate satellite zenith angles (satzen) with negative correlation to solzen
+    call random_number(satzen)
+    satzen = 75.0d0 - 0.5d0 * (solzen + (satzen - 0.5d0) * 20.0d0)
+    ! Clip satzen to [0, 70]
+    do i = 1, n
+        if (satzen(i) < 0.0d0) satzen(i) = 0.0d0
+        if (satzen(i) > 75.0d0) satzen(i) = 75.0d0
+    end do
+
+    ! Generate solar azimuth angles (solaz) uniformly in [0, 360)
+    call random_number(solaz)
+    solaz = (solaz * 360.0d0)-180
+
+    ! Generate relative azimuth angles (relaz) with negative correlation to solzen
+    call random_number(relaz)
+    relaz = 180.0d0 - 0.6d0 * (solzen + (relaz - 0.5d0) * 40.0d0)
+    ! Ensure relaz is in [0, 360)
+    do i = 1, n
+        relaz(i) = mod(relaz(i) + 180.0d0, 180.0d0)
+        !if (relaz(i) > 180) relaz(i) = 360 - relaz(i)
+    end do
+    
+    ! Calculate satellite azimuth angles (sataz = solaz - relaz)
+    sataz = solaz - relaz
+    do i = 1, n
+        sataz(i) = mod(sataz(i) + 360.0d0, 360.0d0)
+    end do
+
+    ! Print first few rows to verify
+    print *, "solzen, satzen, solaz, sataz (first 5):"
+    do i = 1, 5
+        print *, solzen(i), satzen(i), solaz(i), relaz(i)
+    end do
+
+end subroutine generate_viewing_geometry
+
+

@@ -762,6 +762,7 @@ subroutine get_surface_reflectance(cyear, cdoy, cmonth, modis_surf_path, &
          end do
          print*, minval(solza)
          do j = 1, nsea
+            !if (solza(j) .ge. 90) print*, solza(j)
             call cox_munk3_calc_shared_geo_wind(solza(j), satza(j), solaz(j), &
                  relaz(j), u10sea(j), v10sea(j), cox_munk_shared_geo_wind)
 
@@ -774,6 +775,7 @@ subroutine get_surface_reflectance(cyear, cdoy, cmonth, modis_surf_path, &
                ii = band_to_sw_index(i)
                call cox_munk3(bands(i), cox_munk_shared_geo_wind, &
                     ocean_colour(ii,i_oc), refsea(ii, j))
+                    if (solza(j) .gt. 90) print*, solza(j), u10sea(j), v10sea(j), sqrt(u10sea(j)*u10sea(j) + v10sea(j)*v10sea(j))
             end do
          end do
 
@@ -787,7 +789,7 @@ subroutine get_surface_reflectance(cyear, cdoy, cmonth, modis_surf_path, &
                     minval(refsea(ii,:)), maxval(refsea(ii,:))
             end do
          end if
-
+         allocate(refsea(seacount, seacount))
          if (include_full_brdf) then
             allocate(tmprho(n_bands,nsea,4))
 #ifdef __INTEL_COMPILER
@@ -810,7 +812,10 @@ subroutine get_surface_reflectance(cyear, cdoy, cmonth, modis_surf_path, &
                  u10sea, v10sea, sreal_fill_value, tmprho(:,:,1), &
                  tmprho(:,:,2), tmprho(:,:,3), tmprho(:,:,4), verbose)
 #endif
-
+            do i = 1, n_coxbands
+               write(*,*) 'Sea refl: sw_index, wvl, min, max = ', i, &
+                    minval(tmprho(i,:,1)), maxval(tmprho(i,:,1)),minval(tmprho(i,:,2)), maxval(tmprho(i,:,2)),minval(tmprho(i,:,3)), maxval(tmprho(i,:,3)),minval(tmprho(i,:,4)), maxval(tmprho(i,:,4))
+            end do
             do i = 1, n_bands
                ii = band_to_sw_index(i)
                rhosea(ii,:,:) = tmprho(i,:,:)
