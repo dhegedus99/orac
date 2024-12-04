@@ -1,6 +1,6 @@
 $(OBJS)/aatsr_corrections.o: $(OBJS)/calender.o $(OBJS)/preproc_constants.o
 $(OBJS)/bright_m.o: fundamental_constants.inc
-$(OBJS)/build_preproc_fields.o: $(OBJS)/imager_structures.o \
+$(OBJS)/build_preproc_fields.o: $(OBJS)/ecmwf.o $(OBJS)/imager_structures.o \
         $(OBJS)/preproc_constants.o $(OBJS)/preproc_structures.o
 $(OBJS)/calender.o: $(OBJS)/preproc_constants.o
 $(OBJS)/channel_structures.o: $(OBJS)/preproc_constants.o \
@@ -8,6 +8,12 @@ $(OBJS)/channel_structures.o: $(OBJS)/preproc_constants.o \
 $(OBJS)/cloud_emis.o: $(OBJS)/channel_structures.o $(OBJS)/ecmwf.o \
         $(OBJS)/imager_structures.o $(OBJS)/preproc_constants.o \
         $(OBJS)/preproc_structures.o
+$(OBJS)/cox_munk_td.o: $(OBJS)/channel_structures.o $(OBJS)/cox_munk.o \
+        $(OBJS)/cox_munk_constants.o $(OBJS)/ecmwf.o $(OBJS)/fill_grid.o \
+        $(OBJS)/imager_structures.o $(OBJS)/mcd43c.o $(OBJS)/netcdf_output.o \
+        $(OBJS)/ocean_colour.o $(OBJS)/preproc_constants.o \
+        $(OBJS)/preproc_structures.o $(OBJS)/ross_thick_li_sparse_r.o \
+        $(OBJS)/surface_structures.o
 $(OBJS)/cloud_typing_pavolonis.o: $(OBJS)/channel_structures.o $(OBJS)/ecmwf.o \
         $(OBJS)/imager_structures.o $(OBJS)/neural_net_preproc.o \
         $(OBJS)/seviri_neural_net_preproc.o $(OBJS)/surface_structures.o \
@@ -16,10 +22,12 @@ $(OBJS)/correct_for_ice_snow.o: $(OBJS)/channel_structures.o \
         $(OBJS)/imager_structures.o $(OBJS)/nsidc_nise.o \
         $(OBJS)/preproc_constants.o $(OBJS)/preproc_structures.o \
         $(OBJS)/surface_structures.o
+$(OBJS)/correct_for_dust.o: $(OBJS)/channel_structures.o \
+        $(OBJS)/imager_structures.o
 $(OBJS)/cox_munk.o: $(OBJS)/cox_munk_constants.o $(OBJS)/gauss_leg_quad.o \
         $(OBJS)/ocean_colour.o $(OBJS)/preproc_constants.o
 $(OBJS)/cox_munk_constants.o: $(OBJS)/preproc_constants.o
-$(OBJS)/define_preprop_grid.o: $(OBJS)/imager_structures.o \
+$(OBJS)/define_preprop_grid.o: $(OBJS)/ecmwf.o $(OBJS)/imager_structures.o \
         $(OBJS)/preproc_constants.o $(OBJS)/preproc_structures.o
 $(OBJS)/ecmwf.o: $(OBJS)/preproc_constants.o $(OBJS)/preproc_structures.o \
         compute_geopot_coordinate.F90 deallocate_ecmwf_structures.F90 \
@@ -123,10 +131,11 @@ $(OBJS)/surface_emissivity.o: $(OBJS)/channel_structures.o \
         select_modis_emiss_file.F90
 $(OBJS)/surface_reflectance.o: $(OBJS)/channel_structures.o $(OBJS)/cox_munk.o \
         $(OBJS)/cox_munk_constants.o $(OBJS)/ecmwf.o $(OBJS)/fill_grid.o \
-        $(OBJS)/imager_structures.o $(OBJS)/mcd43c.o $(OBJS)/ocean_colour.o \
-        $(OBJS)/preproc_constants.o $(OBJS)/preproc_structures.o \
-        $(OBJS)/ross_thick_li_sparse_r.o $(OBJS)/surface_structures.o \
-        get_surface_reflectance.F90 select_modis_albedo_file.F90
+        $(OBJS)/imager_structures.o $(OBJS)/mcd43c.o $(OBJS)/netcdf_output.o \
+        $(OBJS)/ocean_colour.o $(OBJS)/preproc_constants.o \
+        $(OBJS)/preproc_structures.o $(OBJS)/ross_thick_li_sparse_r.o \
+        $(OBJS)/surface_structures.o get_surface_reflectance.F90 \
+        select_modis_albedo_file.F90
 $(OBJS)/surface_structures.o: $(OBJS)/channel_structures.o \
         $(OBJS)/imager_structures.o $(OBJS)/preproc_constants.o \
         $(OBJS)/preproc_structures.o allocate_surface_structures.F90 \
