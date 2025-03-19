@@ -1,5 +1,7 @@
 """Utility functions for working with ORAC scripts and outputs."""
 import os
+import re
+from pyorac import defaults
 
 
 def bound_grid(grid, point, wrap=None):
@@ -72,11 +74,15 @@ def bilinear_coefficients(x_grid, x_value, y_grid, y_value, field_mask):
 def build_orac_library_path(lib_dict=None, lib_list=None):
     """Build required LD_LIBRARY_PATH variable."""
 
+    try:
+        libs = os.environ["LD_LIBRARY_PATH"].split(':')
+    except (KeyError, AttributeError):
+        libs = []
+
     if lib_list is None:
         lib_list = extract_orac_libraries(lib_dict)
 
-    libs = os.environ["LD_LIBRARY_PATH"].split(':') + lib_list
-    return ':'.join(filter(None, libs))
+    return ':'.join(filter(None, libs + lib_list))
 
 
 def call_exe(args, exe, driver, values=None):
@@ -87,7 +93,6 @@ def call_exe(args, exe, driver, values=None):
     :str exe: Name of the executable.
     :str driver: Contents of the driver file to pass.
     :dict values: Arguments for the batch queueing system."""
-    from pyorac.local_defaults import BATCH, BATCH_VALUES
 
     from pyorac.colour_print import colour_print
     from pyorac.definitions import OracError, COLOURING
@@ -158,7 +163,7 @@ def call_exe(args, exe, driver, values=None):
             ghandle.write("export PPDIR=" + args.emos_dir + "\n")
         except AttributeError:
             pass
-        BATCH.add_openmp_to_script(ghandle)
+        defaults.BATCH.add_openmp_to_script(ghandle)
 
         # Call executable and give the script permission to execute
         ghandle.write(exe + ' ' + driver_file + "\n")
@@ -170,7 +175,7 @@ def call_exe(args, exe, driver, values=None):
 
         try:
             # Collect batch settings from defaults, command line, and script
-            batch_params = BATCH_VALUES.copy()
+            batch_params = defaults.BATCH_VALUES.copy()
             if values:
                 batch_params.update(values)
             batch_params.update({key: val for key, val in args.batch_settings})
@@ -178,14 +183,14 @@ def call_exe(args, exe, driver, values=None):
             batch_params['procs'] = args.procs
 
             # Form batch queue command and call batch queuing system
-            cmd = BATCH.list_batch(batch_params, exe=script_file)
+            cmd = defaults.BATCH.list_batch(batch_params, exe=script_file)
 
             if args.verbose or args.script_verbose:
                 colour_print(' '.join(cmd), COLOURING['header'])
             out = check_output(cmd, universal_newlines=True)
 
             # Parse job ID # and return it to the caller
-            jid = BATCH.parse_out(out, 'ID')
+            jid = defaults.BATCH.parse_out(out, 'ID')
             return jid
         except CalledProcessError as err:
             raise OracError('Failed to queue job ' + exe)
@@ -193,30 +198,153 @@ def call_exe(args, exe, driver, values=None):
             raise OracError(str(err))
 
 
+def compare_nc_atts(dat0, dat1, filename, var):
+    """Report if the attributes of a NCDF file or variable have changed."""
+    from warnings import warn
+    from pyorac.definitions import FieldMissing, Regression
+
+    # Check if any attributes added/removed
+    atts = set(dat0.ncattrs()).symmetric_difference(dat1.ncattrs())
+    if atts:
+        warn(FieldMissing(filename, ', '.join(atts)), stacklevel=3)
+
+    # Check if any attributes changed
+    for key in dat0.ncattrs():
+        if key in atts:
+            continue
+
+        if (dat0.__dict__[key] != dat1.__dict__[key] and
+                key not in defaults.ATTS_TO_IGNORE):
+            warn(Regression(
+                filename, var + ', ' + key, 'warning',
+                'Changed attribute ({} vs {})'.format(
+                    dat0.__dict__[key], dat1.__dict__[key]
+                )
+            ), stacklevel=3)
+
+
+def compare_orac_out(file0, file1):
+    """Compare two NCDF files"""
+    import numpy as np
+    from warnings import warn
+    from pyorac.definitions import (Acceptable, FieldMissing, InconsistentDim,
+                                    OracWarning, Regression, RoundingError)
+
+    try:
+        from netCDF4 import Dataset
+    except ImportError:
+        warn('Skipping regression tests as netCDF4 unavailable',
+             OracWarning, stacklevel=2)
+        return
+
+    try:
+        # Open files
+        dat0 = Dataset(file0, 'r')
+        dat1 = Dataset(file1, 'r')
+
+        # Check if any dimensions added/removed
+        dims = set(dat0.dimensions.keys()).symmetric_difference(
+            dat1.dimensions.keys()
+        )
+        if dims:
+            # Not bothering to identify which file contains the errant field
+            warn(FieldMissing(file1, ', '.join(dims)), stacklevel=2)
+
+        # Check if any dimensions changed
+        for key in dat0.dimensions.keys():
+            if key in dims:
+                continue
+
+            if dat0.dimensions[key].size != dat1.dimensions[key].size:
+                warn(InconsistentDim(file1, key, dat0.dimensions[key].size,
+                                     dat1.dimensions[key].size),
+                     stacklevel=2)
+
+            # Check attributes
+            compare_nc_atts(dat0, dat1, file1, key)
+
+        # Check if any variables added/removed
+        variables = set(dat0.variables.keys()).symmetric_difference(
+            dat1.variables.keys()
+        )
+        if variables:
+            warn(FieldMissing(file1, ', '.join(variables)), stacklevel=2)
+
+        # Check if any variables changed
+        for key in dat0.variables.keys():
+            if key in variables:
+                continue
+
+            att0 = dat0.variables[key]
+            att1 = dat1.variables[key]
+
+            # Turn off masking, so completely NaN fields can be equal
+            att0.set_auto_mask(False)
+            att1.set_auto_mask(False)
+
+            compare_nc_atts(att0, att1, file1, key)
+
+            if att0.size != att1.size:
+                warn(InconsistentDim(file1, key, att0.size, att1.size), stacklevel=2)
+                continue
+
+            # Check if there has been any change
+            if not np.allclose(att0, att1, equal_nan=True, rtol=0, atol=0):
+                test = False
+
+                # For floats, check if variation is acceptable
+                if att0.dtype.kind == 'f':
+                    test = np.allclose(
+                        att0, att1, equal_nan=True, rtol=defaults.RTOL,
+                        atol=defaults.ATOL
+                    )
+                else:
+                    try:
+                        if isinstance(att0.scale_factor, np.floating):
+                            # Packed floats consider the scale factor
+                            test = np.allclose(
+                                att0, att1, equal_nan=True, rtol=defaults.RTOL,
+                                atol=max(att0.scale_factor, defaults.ATOL)
+                            )
+                    except AttributeError:
+                        # If there is no scale factor, treat as an integer
+                        pass
+
+                if test or key in defaults.VARS_TO_ACCEPT:
+                    warn(Acceptable(file1, key), stacklevel=2)
+                else:
+                    warn(RoundingError(file1, key), stacklevel=2)
+    except IOError:
+        pass
+
+    finally:
+        if 'dat0' in locals() or 'dat0' in globals():
+            dat0.close()
+        if 'dat1' in locals() or 'dat1' in globals():
+            dat1.close()
+
+
 def extract_orac_libraries(lib_dict=None):
     """Return list of libraries ORAC should link to."""
-    from pyorac.local_defaults import ORAC_LIB
-    from re import findall
 
     if lib_dict is None:
         try:
             lib_dict = read_orac_library_file(os.environ["ORAC_LIB"])
         except KeyError:
-            lib_dict = read_orac_library_file(ORAC_LIB)
+            lib_dict = read_orac_library_file(defaults.ORAC_LIB)
 
-    return [m[0] for m in findall(r"-L(.+?)(\s|$)", lib_dict["LIBS"])]
+    return [m[0] for m in re.findall(r"-L(.+?)(\s|$)", lib_dict["LIBS"])]
 
 
 def get_repository_revision():
     """Call git to determine repository revision number"""
-    from pyorac.local_defaults import ORAC_DIR
     from subprocess import check_output
 
     fdr = os.getcwd()
     try:
         os.chdir(os.environ["ORACDIR"])
     except KeyError:
-        os.chdir(ORAC_DIR)
+        os.chdir(defaults.ORAC_DIR)
     try:
         tmp = check_output(["git", "rev-list", "--count", "HEAD"],
                            universal_newlines=True)
@@ -229,7 +357,6 @@ def get_repository_revision():
 
 def read_orac_library_file(filename):
     """Read the ORAC library definitions into a Python dictionary"""
-    import re
 
     def fill_in_variables(text, libraries):
         """Replaces all $() with value from a dictionary or environment."""
@@ -241,13 +368,12 @@ def read_orac_library_file(filename):
 
             def replace_var(matchobj):
                 """Fetch name from dictionary."""
-                from os import environ
                 try:
                     name = matchobj.group(1)
                     try:
                         return dictionary[name]
                     except KeyError:
-                        return environ[name]
+                        return os.environ[name]
                 except (IndexError, KeyError):
                     return ""
 

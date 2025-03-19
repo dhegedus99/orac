@@ -323,6 +323,7 @@ subroutine orac(mytask,ntasks,lower_bound,upper_bound,drifile)
    Ctrl%Ind%flags%do_ann_phase_uncertainty = .true.
    Ctrl%Ind%flags%do_phase               = .false.
    Ctrl%Ind%flags%do_covariance          = .false.
+   Ctrl%Ind%flags%do_meas_error          = .true.
 
    ! Set the size of the SAD_Chan and Cloud Class arrays based on the Ctrl
    ! parameters and read the SAD values.
@@ -609,8 +610,8 @@ subroutine orac(mytask,ntasks,lower_bound,upper_bound,drifile)
       ! Form a list of all the views available in this file
       ! (forseeing the eventual desire to process arbitrary views)
       m = 0
-      do i=1,MaxNumViews
-         do j=1,Ctrl%Ind%Ny
+      do i = 1, MaxNumViews
+         do j = 1, Ctrl%Ind%Ny
             if (Ctrl%Ind%View_Id(j) == i) then
                m = m + 1
                output_data_1%view_id(m) = i

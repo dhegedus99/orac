@@ -12,6 +12,7 @@
 ! 2016/07/19, AP: Reduce rho and swansea_s to only contain terms that were
 !    retrieved. This is indicated by the rho|ss_terms array (and Nrho|Nss).
 ! 2017/05/17, OS: Added ann phase variables
+! 2023/10/10, GT: Added do_meas_error flag
 !
 ! Bugs:
 ! None known.
@@ -42,6 +43,7 @@ module orac_indexing_m
 
       ! Secondary file flags
       logical :: do_covariance          ! Output the final covariance matrix
+      logical :: do_meas_error          ! Measurement uncertainties (diagonal)
    end type common_file_flags_t
 
 
@@ -97,6 +99,7 @@ module orac_indexing_m
    integer, parameter :: ann_phase_u_bit   = 10
    integer, parameter :: phase_bit         = 11
    integer, parameter :: covariance_bit    = 12
+   integer, parameter :: meas_error_bit    = 13
 
 
 contains
@@ -122,6 +125,7 @@ subroutine make_bitmask_from_common_file_flags(flags, bitmask)
    if (flags%do_ann_phase_uncertainty) bitmask = ibset(bitmask, ann_phase_u_bit)
    if (flags%do_phase)               bitmask = ibset(bitmask, phase_bit)
    if (flags%do_covariance)          bitmask = ibset(bitmask, covariance_bit)
+   if (flags%do_meas_error)          bitmask = ibset(bitmask, meas_error_bit)
 
 end subroutine make_bitmask_from_common_file_flags
 
@@ -146,6 +150,7 @@ subroutine set_common_file_flags_from_bitmask(bitmask, flags)
    flags%do_ann_phase_uncertainty = btest(bitmask, ann_phase_u_bit)
    flags%do_phase               = btest(bitmask, phase_bit)
    flags%do_covariance          = btest(bitmask, covariance_bit)
+   flags%do_meas_error          = btest(bitmask, meas_error_bit)
 
 end subroutine set_common_file_flags_from_bitmask
 
@@ -162,30 +167,30 @@ subroutine make_bitmask_from_terms(ind, bitmask)
    bitmask = 0
 
    if (associated(ind%ss_terms)) then
-      do i=1,ind%NSolar
+      do i = 1, ind%NSolar
          ii = ind%YSolar(i)
          if (ind%ss_terms(i)) bitmask(ii) = ibset(bitmask(ii), 0)
       end do
    end if
 
    if (associated(ind%rho_terms)) then
-      do i=1,ind%NSolar
+      do i = 1, ind%NSolar
          ii = ind%YSolar(i)
-         do j=1,MaxRho_XX
+         do j = 1, MaxRho_XX
             if (ind%rho_terms(i,j)) bitmask(ii) = ibset(bitmask(ii), j)
          end do
       end do
    end if
 
    if (associated(ind%alb_terms)) then
-      do i=1,ind%NSolar
+      do i = 1, ind%NSolar
          ii = ind%YSolar(i)
          if (ind%alb_terms(i)) bitmask(ii) = ibset(bitmask(ii), MaxRho_XX+1)
       end do
    end if
 
    if (associated(ind%cee_terms)) then
-      do i=1,ind%NThermal
+      do i = 1, ind%NThermal
          ii = ind%YThermal(i)
          if (ind%cee_terms(i)) bitmask(ii) = ibset(bitmask(ii), MaxRho_XX+2)
       end do
@@ -203,19 +208,19 @@ subroutine set_terms_from_bitmask(bitmask, ind)
 
    integer :: i, j, ii
 
-   do i=1,ind%NSolar
+   do i = 1, ind%NSolar
       ii = ind%YSolar(i)
 
       ind%ss_terms(i) = btest(bitmask(ii), 0)
 
-      do j=1,MaxRho_XX
+      do j = 1, MaxRho_XX
          ind%rho_terms(i,j) = btest(bitmask(ii), j)
       end do
 
       ind%alb_terms(i) = btest(bitmask(ii), MaxRho_XX+1)
    end do
 
-   do i=1,ind%NThermal
+   do i = 1, ind%NThermal
       ii = ind%YThermal(i)
 
       ind%cee_terms(i) = btest(bitmask(ii), MaxRho_XX+2)

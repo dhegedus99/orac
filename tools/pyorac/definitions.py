@@ -30,22 +30,21 @@ class OracError(Exception):
     pass
 
 
-class FileMissing(OracError):
+class FileMissing(FileNotFoundError, OracError):
     """Error when a required file could not be found."""
 
     def __init__(self, desc, filename):
-        OracError.__init__(self, 'Could not locate {:s}: {:s}'.format(desc,
-                                                                      filename))
-        self.desc = desc
-        self.filename = filename
+        super().__init__(None, f'Could not locate {desc}', filename)
+
+    def __str__(self):
+        return self.strerror + ': ' + self.filename
 
 
-class BadValue(OracError):
+class BadValue(ValueError, OracError):
     """Error when an out-of-range value is provided."""
 
     def __init__(self, variable, value):
-        OracError.__init__(self, 'Invalid value for {}: {}'.format(variable,
-                                                                   value))
+        super().__init__(f'Invalid value for {variable}: {value}')
         self.variable = variable
         self.value = value
 
@@ -165,8 +164,7 @@ class FileName:
         )
         if mat:
             self.sensor = 'AATSR'
-            self.platform = 'Envisat'  # For preprocessor
-            self.inst = 'AATSR'  # For main processor
+            self.platform = 'Envisat'
             self.time = datetime.datetime(
                 int(mat.group('year')), int(mat.group('month')),
                 int(mat.group('day')), int(mat.group('hour')),
@@ -186,8 +184,7 @@ class FileName:
         )
         if mat:
             self.sensor = 'ATSR2'
-            self.platform = 'ERS2'  # For preprocessor
-            self.inst = 'ATSR2'  # For main processor
+            self.platform = 'ERS2'
             self.time = datetime.datetime(
                 int(mat.group('year')), int(mat.group('month')),
                 int(mat.group('day')), int(mat.group('hour')),
@@ -206,11 +203,9 @@ class FileName:
         if mat:
             self.sensor = 'MODIS'
             if mat.group('platform') == 'O':
-                self.platform = 'TERRA'  # For preprocessor
-                self.inst = 'MODIS-TERRA'  # For main processor
+                self.platform = 'TERRA'
             else:  # == 'Y'
                 self.platform = 'AQUA'
-                self.inst = 'MODIS-AQUA'
             self.time = (datetime.datetime(
                 int(mat.group('year')), 1, 1, int(mat.group('hour')),
                 int(mat.group('min')), 0, 0
@@ -229,8 +224,7 @@ class FileName:
         )
         if mat:
             self.sensor = 'AVHRR'
-            self.platform = 'noaa' + mat.group('platform')
-            self.inst = 'AVHRR-NOAA' + mat.group('platform')
+            self.platform = 'NOAA-' + mat.group('platform')
             self.time = datetime.datetime(
                 int(mat.group('year')), int(mat.group('month')),
                 int(mat.group('day')), int(mat.group('hour')),
@@ -250,8 +244,7 @@ class FileName:
         )
         if mat:
             self.sensor = 'AVHRR'
-            self.platform = 'noaa' + mat.group('platform')
-            self.inst = 'AVHRR-NOAA' + mat.group('platform')
+            self.platform = 'NOAA-' + mat.group('platform')
             # The time specification could be fixed, as the pygac file
             # names include start and end times, to 0.1 seconds
             self.time = datetime.datetime(
@@ -273,7 +266,6 @@ class FileName:
         if mat:
             self.sensor = 'AHI'
             self.platform = 'Himawari-'+str(int(mat.group('platform')))
-            self.inst = 'AHI-'+self.platform
             self.time = datetime.datetime(
                 int(mat.group('year')), int(mat.group('month')),
                 int(mat.group('day')), int(mat.group('hour')),
@@ -284,6 +276,26 @@ class FileName:
             self.predef = True
             return
 
+        # Attempt GOES ABI filename in NetCDF format
+        mat = re.search(
+            r'OR_ABI-L1b-RadF-M6C(?P<band>\d{2})_G(?P<platform>\d{2})'
+            r'_s(?P<year>\d{4})(?P<doy>\d{3})'
+            r'(?P<hour>\d{2})(?P<min>\d{2})(\d{3})_e(\d{14})_c(\d{14})'
+            r'(-\d{6}_\d)?'
+            r'\.nc', filename
+        )
+
+        if mat:
+            self.sensor = 'ABI'
+            self.platform = 'GOES-'+str(int(mat.group('platform')))
+            self.time = (datetime.datetime(
+                int(mat.group('year')), 1, 1, int(mat.group('hour')),
+                int(mat.group('min')), 0, 0
+            ) + datetime.timedelta(days=int(mat.group('doy')) - 1))
+            self.dur = datetime.timedelta(seconds=600)  # Approximately
+            self.geo = filename
+            return
+
         # Attempt SEVIRI L1B filename in NAT format
         mat = re.search(
             r'MSG(?P<platform>\d{1})-SEVI-MSG(\d+)-(\d+)-NA-(?P<year>\d{4})'
@@ -292,8 +304,7 @@ class FileName:
         )
         if mat:
             self.sensor = 'SEVIRI'
-            self.platform = 'MSG' + mat.group('platform')
-            self.inst = 'SEVIRI-' + self.platform
+            self.platform = 'MSG-' + mat.group('platform')
             self.time = datetime.datetime(
                 int(mat.group('year')), int(mat.group('month')),
                 int(mat.group('day')), int(mat.group('hour')),
@@ -312,8 +323,7 @@ class FileName:
         )
         if mat:
             self.sensor = 'SEVIRI'
-            self.platform = 'MSG' + mat.group('platform')
-            self.inst = 'SEVIRI-' + self.platform
+            self.platform = 'MSG-' + mat.group('platform')
             self.time = datetime.datetime(
                 int(mat.group('year')), int(mat.group('month')),
                 int(mat.group('day')), int(mat.group('hour')),
@@ -335,7 +345,6 @@ class FileName:
                 tmp = os.path.join(fdr, filename)
                 if os.path.isfile(tmp):
                     self.platform = _determine_platform_from_metoffice(tmp)
-            self.inst = 'SEVIRI-' + self.platform
             self.time = datetime.datetime(
                 int(mat.group('year')), int(mat.group('month')),
                 int(mat.group('day')), int(mat.group('hour')),
@@ -359,7 +368,6 @@ class FileName:
             self.l1b = os.path.join(filename, "geodetic_in.nc")
             self.sensor = 'SLSTR'
             self.platform = 'Sentinel-3' + mat.group('platform').lower()
-            self.inst = 'SLSTR-Sentinel-3' + mat.group('platform').lower()
             self.dur = datetime.timedelta(seconds=int(mat.group('duration')))
             self.geo = os.path.join(filename, "geodetic_in.nc")
 
@@ -400,19 +408,14 @@ class FileName:
         )
         if mat:
             self.sensor = mat.group('sensor')
-            if self.sensor == 'SLSTR':
-                # SLSTR uses its own hyphening
-                self.platform = 'Sentinel-3' + mat.group('platform')[-1].lower()
-            else:
-                self.platform = mat.group('platform')
-            if 'ATSR' in self.sensor:
-                # SAD file names don't include platform for ATSR instruments
-                self.inst = self.sensor
-            elif self.sensor == 'SLSTR':
-                # SLSTR doesn't capitalise the platform name
-                self.inst = self.sensor + '-' + self.platform
-            else:
-                self.inst = self.sensor + '-' + self.platform.upper()
+            self.platform = mat.group('platform')
+            # Put hyphen back in platform name
+            for label in ("FY", "GOES", "Himawari", "Metop", "MSG", "NOAA",
+                          "Sentinel", "Suomi"):
+                if self.platform.startswith(label):
+                    self.platform = label + "-" + self.platform[len(label):]
+                    break
+
             self.time = datetime.datetime(
                 int(mat.group('year')), int(mat.group('month')),
                 int(mat.group('day')), int(mat.group('hour')),
@@ -449,8 +452,8 @@ class FileName:
         """Returns a formatted description of this orbit."""
         if revision is None:
             revision = self.revision
-        return self.time.strftime('{}_%Y-%m-%d-%H-%M_R{}_{}'.format(
-            self.inst, revision, tag
+        return self.time.strftime('{}_{}_%Y-%m-%d-%H-%M_R{}_{}'.format(
+            self.sensor, self.platform, revision, tag
         ))
 
     def root_name(self, revision=None, processor=None, project=None,
@@ -471,7 +474,7 @@ class FileName:
                              "for ORAC filenames. Please specify " + terms[-2])
 
         parts = [
-            self.sensor, processor, self.platform.replace("Sentinel-3", "Sentinel3"),
+            self.sensor, processor, self.platform.replace("-", ""),
             self.time.strftime('%Y%m%d%H%M'), "R{}".format(revision)
         ]
         if self.orbit_num:
@@ -480,17 +483,47 @@ class FileName:
         return '-'.join((project, product_name, "_".join(parts)))
 
     @property
-    def noaa(self):
+    def avhrr_type(self):
         """Returns platform number for NOAA AVHRR sensors."""
-        plat = int(self.platform[4:])
+        if self.sensor != "AVHRR":
+            return None
+
+        if self.platform.startswith("Metop"):
+            return 3
+
+        plat = int(self.platform[5:])
         if plat in (6, 8, 10):
-            return '1'
+            return 1
         elif plat in (7, 9, 11, 12, 13, 14):
-            return '2'
+            return 2
         elif plat in (15, 16, 17, 18, 19):
-            return '3'
-        else:
-            raise ValueError("Unknown AVHRR platform: " + self.platform)
+            return 3
+
+        raise ValueError("Unknown AVHRR platform: " + self.platform)
+
+    @property
+    def text_sad_platform(self):
+        """Platform name using the formatting of the text LUTs"""
+        if self.platform.startswith("NOAA"):
+            return "NOAA{:02d}".format(int(self.platform[5:]))
+        if self.platform == "Metop-A":
+            return "Metop2"
+        if self.platform == "Metop-B":
+            return "Metop1"
+        if self.platform == "Metop-C":
+            return "Metop3"
+        if self.platform.startswith("MSG") or self.platform.startswith("Suomi"):
+            return self.platform.replace("-", "")
+        return self.platform
+
+    @property
+    def ncdf_sad_platform(self):
+        """Platform name using the formatting of the NCDF LUTs"""
+        if self.platform.startswith("MSG"):
+            return "meteosat-{:d}".format(int(self.platform[4:]) + 7)
+        if self.platform.startswith("FY"):
+            return "fengyun-" + self.platform[3:].lower()
+        return self.platform.lower()
 
 
 def _determine_platform_from_metoffice(filename):
@@ -502,169 +535,4 @@ def _determine_platform_from_metoffice(filename):
     if 321 > platform > 324:
         raise ValueError("Unrecognised platform number {}".format(platform))
 
-    return "MSG{}".format(platform - 320)
-
-
-# -----------------------------------------------------------------------------
-# ----- INSTRUMENT/CLASS DEFINITIONS ------------------------------------------
-# -----------------------------------------------------------------------------
-
-class Invpar:
-    """Container for settings to pass to an ORAC retrieval
-    Member variables:
-    var - Name of the element of the state vector
-    ap  - A priori value to use
-    fg  - First guess of this value
-    sx  - A priori uncertainty on this value
-    """
-
-    def __init__(self, var, ap=None, fg=None, sx=None):
-        self.var = var
-        self.ap = ap
-        if fg is None:
-            self.fg = ap
-        else:
-            self.fg = fg
-        self.sx = sx
-
-    def driver(self):
-        """Output lines for a driver file to specify these settings"""
-        driver = ''
-        if self.ap is not None:
-            driver += "\nCtrl%XB[{:s}] = {}".format(self.var, self.ap)
-        if self.fg is not None:
-            driver += "\nCtrl%X0[{:s}] = {}".format(self.var, self.fg)
-        if self.sx is not None:
-            driver += "\nCtrl%Sx[{:s}] = {}".format(self.var, self.sx)
-        return driver
-
-
-class ParticleType:
-    """Container for an ORAC particle type
-    Member variables:
-    inv - Tuple of Invpars giving settings to pass to retrieval
-    wvl - Wavelengths used (negative implies the second view)
-    sad - SAD file directory to use
-    ls  - If true, process land and sea separately
-    mb  - 'm' for monochromatic calculation or 'b' for band calculation
-           weighted by the spectral response function
-    atmospheric_model - code denoting the atmospheric model where
-                         00: cloud, no Rayleigh scattering
-                         01: cloud, includes Rayleigh scattering
-                         1X: aerosol, where X denotes the gaseous model where
-                                1 = Tropical Atmosphere
-                                2 = Midlatitude Summer
-                                3 = Midlatitude Winter
-                                4 = Subarctic Summer
-                                5 = Subarctic Winter
-                                6 = 1976 US Standard
-    microphysical_model - Three digit code to represent particle microphysics.
-                          Backwards compatible with old LUT naming
-                          e.g. a70 for aerosol dust model
-    version - LUT version
-    """
-
-    def __init__(self, name, inv=(),
-                 sad="CCI_A70-A79",
-                 mb='m',
-                 atmospheric_model='01',
-                 microphysical_model='old',
-                 version='07'):
-        self.name = name
-        self.inv = inv
-        self.sad = sad
-        self.mb = mb
-        self.atmospheric_model = atmospheric_model
-        self.microphysical_model = microphysical_model
-        self.version = version
-
-    def sad_filename(self, inst):
-        """Return the filename of the SAD files."""
-        if self.sad == 'netcdf':
-            platform_name = inst.platform.lower()
-            sensor_name = inst.sensor.lower()
-            if sensor_name == 'seviri':
-                if platform_name == 'msg1':
-                    platform_name = 'meteosat-8'
-                if platform_name == 'msg2':
-                    platform_name = 'meteosat-9'
-                if platform_name == 'msg3':
-                    platform_name = 'meteosat-10'
-                if platform_name == 'msg4':
-                    platform_name = 'meteosat-11'
-            elif sensor_name == 'avhrr':
-                sensor_name += '1'
-                if platform_name.startswith("noaa"):
-                    platform_name = "noaa-" + platform_name[4:]
-            file_name = '_'.join((platform_name,
-                                  sensor_name,
-                                  self.mb,
-                                  self.name,
-                                  'a' + self.atmospheric_model,
-                                  'p' + self.microphysical_model,
-                                  'v' + self.version + '.nc'))
-        else:
-            file_name = "_".join((inst.inst, self.name, "RD", "Ch*.sad"))
-        return file_name
-
-    def sad_dir(self, sad_dirs, inst, rayleigh=True):
-        """Return the path to the SAD files."""
-        from glob import glob
-        from os.path import join
-
-        # Determine SAD file name
-        file_name = self.sad_filename(inst)
-
-        for fdr in sad_dirs:
-            if "AVHRR" in inst.sensor:
-                fdr_name = join(fdr, inst.sensor.lower() + "-" +
-                                inst.noaa + "_" + self.sad)
-            else:
-                # Folder structure on JASMIN
-                fdr_name = join(fdr, inst.sensor.lower() + "_" + self.sad)
-
-                # Folder structure on local
-                # fdr_name = join(fdr, inst.sensor.lower(),
-                #                 inst.platform.upper(), self.sad)
-            if not rayleigh:
-                fdr_name += "_no_ray"
-
-            # SAD files stored in subdirectories
-            if glob(join(fdr_name, file_name)):
-                return fdr_name
-
-            # All files in one directory
-            if glob(join(fdr, file_name)):
-                return fdr
-
-        else:
-            # If _no_ray is missing, try to find the normal table
-            if not rayleigh:
-                return self.sad_dir(sad_dirs, inst)
-
-        raise FileMissing("Sad Files", str(list(sad_dirs) + [file_name]))
-
-
-# Using non-imager LUTs and Baum properties at Greg's recommendation
-SETTINGS = {'WAT': ParticleType("WAT", sad="WAT"),
-            'ICE': ParticleType("ICE", sad="ICE_baum")}
-
-# Uncomment to use new netcdf LUTs
-#SETTINGS = {'WAT': ParticleType("liquid-water", sad='netcdf'),
-#            'ICE': ParticleType("water-ice", sad='netcdf', microphysical_model='agg')}
-
-
-tau = Invpar('ITau', ap=-1.0, sx=1.5)
-SETTINGS['A70'] = ParticleType("A70", inv=(tau, Invpar('IRe', ap=0.0856, sx=0.15)))
-SETTINGS['A71'] = ParticleType("A71", inv=(tau, Invpar('IRe', ap=-0.257, sx=0.15)))
-SETTINGS['A72'] = ParticleType("A72", inv=(tau, Invpar('IRe', ap=-0.257, sx=0.15)))
-SETTINGS['A73'] = ParticleType("A73", inv=(tau, Invpar('IRe', ap=-0.257, sx=0.15)))
-SETTINGS['A74'] = ParticleType("A74", inv=(tau, Invpar('IRe', ap=-0.257, sx=0.15)))
-SETTINGS['A75'] = ParticleType("A75", inv=(tau, Invpar('IRe', ap=-0.0419, sx=0.15)))
-SETTINGS['A76'] = ParticleType("A76", inv=(tau, Invpar('IRe', ap=0.0856, sx=0.15)))
-SETTINGS['A77'] = ParticleType("A77", inv=(tau, Invpar('IRe', ap=-0.0419, sx=0.15)))
-SETTINGS['A78'] = ParticleType("A78", inv=(tau, Invpar('IRe', ap=-0.257, sx=0.15)))
-SETTINGS['A79'] = ParticleType("A79", inv=(tau, Invpar('IRe', ap=-0.848, sx=0.15)))
-SETTINGS['EYJ'] = ParticleType("EYJ", inv=(
-    Invpar('ITau', ap=0.18, sx=1.5), Invpar('IRe', ap=0.7, sx=0.15)
-))
+    return "MSG-{}".format(platform - 320)

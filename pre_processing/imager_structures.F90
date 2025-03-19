@@ -25,9 +25,6 @@
 ! 2017/03/29, SP: Add new variable for tropopause cloud emissivity (ExtWork)
 ! 2017/06/21, OS: added ann phase variables
 ! 2017/11/15, SP: Add feature to give access to sensor azimuth angle
-! 2018/02/02, GT: Added total number of pixels across and along track to
-!    imager_geolocation (in addition to the nx and ny values, which reflect
-!    user specified start and end coordinates)
 ! 2018/11/05, SP: Add CAPE
 !
 ! Bugs:
@@ -105,6 +102,11 @@ module imager_structures_m
       integer(kind=byte), dimension(:,:,:), pointer :: ann_phase
       real(kind=sreal),   dimension(:,:,:), pointer :: ann_phase_uncertainty
       real(kind=sreal),   dimension(:,:,:), pointer :: cphcot
+      real(kind=sreal),   dimension(:,:,:), pointer :: ctp_fg
+      real(kind=sreal),   dimension(:,:,:), pointer :: ctp_fg_unc
+      real(kind=sreal),   dimension(:,:,:), pointer :: mlay_prob
+      integer(kind=byte), dimension(:,:,:), pointer :: mlay_flag
+      real(kind=sreal),   dimension(:,:,:), pointer :: mlay_unc
       integer(kind=byte), dimension(:,:,:), pointer :: cirrus_quality
       real(kind=sreal),   dimension(:,:,:), pointer :: emis_ch3b
 

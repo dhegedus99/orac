@@ -2,7 +2,9 @@
 import os
 import warnings
 
+from copy import copy
 from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
 from glob import glob
 from pyorac.definitions import OracError, OracWarning, FileMissing
 
@@ -124,7 +126,7 @@ def build_preproc_driver(args):
             try:
                 occci = _date_back_search(
                     args.occci_dir, args.File.time,
-                    '%Y/ESACCI-OC-L3S-IOP-MERGED-1M_MONTHLY'
+                    'ESACCI-OC-L3S-IOP-MERGED-1M_MONTHLY'
                     f'_4km_GEO_PML_OCx_QAA-%Y%m-fv{oc_version:.1f}.nc',
                     'years'
                 )
@@ -132,9 +134,9 @@ def build_preproc_driver(args):
             except FileMissing:
                 pass
         else:
-            raise FileMissing('Ocean Colour CCI', args.occci_dir +
+            raise FileMissing('Ocean Colour CCI', os.path.join(args.occci_dir,
                               'ESACCI-OC-L3S-IOP-MERGED-1M_MONTHLY'
-                              '_4km_GEO_PML_OCx_QAA-%Y%m-fvVV.nc')
+                              '_4km_GEO_PML_OCx_QAA-%Y%m-fvVV.nc'))
     else:
         occci = ''
 
@@ -304,7 +306,7 @@ USE_SWANSEA_CLIMATOLOGY={args.swansea}"""
         if part == "pre" and filename != "":
             try:
                 with open(filename, "r") as extra:
-                    driver += "\n" + extra.read()
+                    driver += "\n" + extra.read().rstrip('\n')
             except IOError:
                 raise FileMissing('extra_lines_file', filename)
     for sec, key, val in args.additional:
@@ -312,8 +314,7 @@ USE_SWANSEA_CLIMATOLOGY={args.swansea}"""
             driver += f"\n{key}={val}"
 
     if args.File.predef and not args.no_predef:
-        driver += f"""
-USE_PREDEF_LSM=False
+        driver += f"""\nUSE_PREDEF_LSM=False
 EXT_LSM_PATH={args.prelsm_file}
 USE_PREDEF_GEO=False
 EXT_GEO_PATH={args.pregeo_file}"""
@@ -326,7 +327,13 @@ EXT_GEO_PATH={args.pregeo_file}"""
 
 def build_main_driver(args):
     """Prepare a driver file for the main processor."""
-    from pyorac.definitions import SETTINGS
+    from pyorac.local_defaults import LUT_LOOKUP
+    from pyorac.processing_settings import APRIORI_LOOKUP
+
+    # Evaluate requested LUT path and name for this instrument
+    sad_dir, sad_file, particle, prior = LUT_LOOKUP[args.lut_name](args.File, True)
+    if not os.path.isdir(sad_dir):
+        raise FileMissing('LUT directory', sad_dir)
 
     # Form mandatory driver file lines
     driver = """# ORAC New Driver File
@@ -337,7 +344,7 @@ Ctrl%FID%SAD_Dir            = "{sad_dir}"
 Ctrl%InstName               = "{sensor}"
 Ctrl%Ind%NAvail             = {nch}
 Ctrl%Ind%Channel_Proc_Flag  = {channels}
-Ctrl%LUTClass               = "{phase}"
+Ctrl%LUTClass               = "{particle}"
 Ctrl%Process_Cloudy_Only    = {cloudy}
 Ctrl%Process_Aerosol_Only   = {aerosoly}
 Ctrl%Verbose                = {verbose}
@@ -350,34 +357,43 @@ Ctrl%RS%Use_Full_BRDF       = {use_brdf}""".format(
         in_dir=args.in_dir[0],
         nch=len(args.available_channels),
         out_dir=args.out_dir,
-        phase=SETTINGS[args.phase].name,
-        sad_dir=SETTINGS[args.phase].sad_dir(args.sad_dirs, args.File),
-        sensor=args.File.inst,
+        particle=particle,
+        sad_dir=sad_dir,
+        sensor=args.File.sensor + '-' + args.File.platform,
         use_brdf=not (args.lambertian or args.approach == 'AppAerSw'),
         verbose=args.verbose,
     )
     # If a netcdf LUT is being used then write NCDF LUT filename
-    if SETTINGS[args.phase].sad == 'netcdf':
-        driver += """
-Ctrl%FID%NCDF_LUT_Filename = "{ncdf_lut_filename}"
-        """.format(ncdf_lut_filename=SETTINGS[args.phase].sad_filename(args.File))
+    if sad_file is not None:
+        if not os.path.isfile(os.path.join(sad_dir, sad_file)):
+            raise FileMissing('LUT file', os.path.join(sad_dir, sad_file))
+        driver += f"\nCtrl%FID%NCDF_LUT_Filename = \"{sad_file}\""
+
+    for state_index, priors in APRIORI_LOOKUP[prior].items():
+        for variable_name, value in priors.items():
+            driver += _format_driver_line(variable_name, state_index, value)
 
     # Optional driver file lines
     if args.multilayer is not None:
-        if SETTINGS[args.phase].sad == 'netcdf':
-            driver += """
-Ctrl%FID%NCDF_LUT_Filename2 = "{ncdf_lut_filename}"
-        """.format(ncdf_lut_filename=SETTINGS[args.multilayer[0]].sad_filename(args.File))
-        driver += """
-Ctrl%LUTClass2              = "{}"
-Ctrl%FID%SAD_Dir2           = "{}"
-Ctrl%Class2                 = {}""".format(
-            SETTINGS[args.multilayer[0]].name,
-            SETTINGS[args.multilayer[0]].sad_dir(args.sad_dirs, args.File, rayleigh=False),
-            args.multilayer[1],
-        )
-        for var in SETTINGS[args.multilayer[0]].inv:
-            driver += var.driver()
+        sad_dir2, sad_file2, particle2, prior2 = LUT_LOOKUP[args.multilayer[0]](args.File, False)
+        if not os.path.isdir(sad_dir2):
+            raise FileMissing('LUT2 directory', sad_dir2)
+
+        driver += f"\nCtrl%LUTClass2              = \"{particle2}\""
+        driver += f"\nCtrl%FID%SAD_Dir2           = \"{sad_dir2}\""
+        driver += f"\nCtrl%Class2                 = {args.multilayer[1]}"
+        if sad_file2 is not None:
+            if not os.path.isfile(os.path.join(sad_dir2, sad_file2)):
+                raise FileMissing('LUT2 file', os.path.join(sad_dir2, sad_file2))
+            driver += f"\nCtrl%FID%NCDF_LUT_Filename2 = \"{sad_file2}\""
+
+        # TODO: Lower level prior preferably set from surrounding obs
+        for state_index, priors in APRIORI_LOOKUP[prior].items():
+            # Add 2 to text state vector index to hit second layer
+            if state_index[0] in 'iI':
+                state_index += '2'
+            for variable_name, value in priors.items():
+                driver += _format_driver_line(variable_name, state_index, value)
     if args.types:
         driver += "\nCtrl%NTypes_To_Process      = {:d}".format(len(args.types))
         driver += ("\nCtrl%Types_To_Process(1:{:d}) = ".format(len(args.types)) +
@@ -392,8 +408,6 @@ Ctrl%Class2                 = {}""".format(
         driver += "\nCtrl%Surfaces_To_Skip       = ISea"
     elif args.no_land:
         driver += "\nCtrl%Surfaces_To_Skip       = ILand"
-    for var in SETTINGS[args.phase].inv:
-        driver += var.driver()
     for part, filename in args.extra_lines:
         if part == "main" and filename != "":
             try:
@@ -418,7 +432,7 @@ def build_postproc_driver(args, files):
     try:
         multilayer = args.approach == 'AppCld2L'
     except AttributeError:
-        multilayer = any("_" in typ for typ in args.phases)
+        multilayer = any("_" in typ for typ in args.lut_names)
 
     # Form driver file
     driver = """{multilayer}
@@ -435,7 +449,7 @@ OUTPUT_OPTICAL_PROPS_AT_NIGHT={opt_nght}
 VERBOSE={verbose}
 USE_CHUNKING={chunking}
 USE_NETCDF_COMPRESSION={compress}
-USE_NEW_BAYESIAN_SELECTION={bayesian}""".format(
+USE_BAYESIAN_SELECTION={bayesian}""".format(
         bayesian=not cci_cloud,
         chunking=args.chunking,
         compress=args.compress,
@@ -511,8 +525,6 @@ def _date_back_search(fdr, date_in, pattern, interval):
     :str pattern: strftime format string used to parse filename.
     :str interval: Keyword of relativedelta indicating interval to step back.
     """
-    from copy import copy
-    from dateutil.relativedelta import relativedelta
 
     # Step forward one day, month, or year
     delta = relativedelta(**{interval: 1})
@@ -560,6 +572,18 @@ def _form_bound_filenames(bounds, fdr, form):
         except IndexError:
             raise FileMissing('ECMWF file', path)
     return out
+
+
+def _format_driver_line(variable_name, index, value):
+    """Appropriately formats human-readable apriori information"""
+    if variable_name == 'AP':
+        return f"\nCtrl%XB[{index}] = {value}"
+    if variable_name == 'FG':
+        return f"\nCtrl%X0[{index}] = {value}"
+    if variable_name == 'SX':
+        return f"\nCtrl%SX[{index}] = {value}"
+
+    return f"\n{variable_name}[{index}] = {value}"
 
 
 def _glob_dirs(dirs, path, desc):

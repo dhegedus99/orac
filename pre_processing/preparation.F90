@@ -109,6 +109,9 @@ subroutine preparation(paths, granule, opts, global_atts, orbit_number, &
    real                       :: startr, endr
    character(len=32)          :: startc, endc, chunkc
 
+   character(len=platform_length) :: platform
+   integer                        :: i
+
    if (verbose) then
       write(*,*) '<<<<<<<<<<<<<<< Entering preparation()'
 
@@ -168,12 +171,19 @@ subroutine preparation(paths, granule, opts, global_atts, orbit_number, &
 
    ! ESACCI-L2-CLOUD-CLD-${sensor}_${product_string}_${platform}_*${YYYY}${MM}${DD}${HH}${II}_${version2}.*.nc
 
+   ! Remove hyphens from platform name
+   platform = adjustl(granule%platform)
+   i = index(platform, '-')
+   if (i > 0) then
+      platform = platform(1:i-1) // trim(platform(i+1:))
+   end if
+
    ! put basic filename together
    file_base = trim(adjustl(global_atts%project))//'-'// &
                trim(adjustl(opts%product_name))//'-'// &
                trim(adjustl(granule%sensor))//'_'// &
                trim(adjustl(global_atts%l2_processor))//'_'// &
-               trim(adjustl(granule%platform))//'_'// &
+               trim(adjustl(platform))//'_'// &
                trim(adjustl(granule%cyear))//trim(adjustl(granule%cmonth))// &
                trim(adjustl(granule%cday))// &
                trim(adjustl(granule%chour))//trim(adjustl(granule%cminute))//'_'
@@ -197,7 +207,8 @@ subroutine preparation(paths, granule, opts, global_atts, orbit_number, &
    paths%geo_file = trim(adjustl(file_base))//'.geo.nc'
    paths%loc_file = trim(adjustl(file_base))//'.loc.nc'
    paths%alb_file = trim(adjustl(file_base))//'.alb.nc'
-
+   paths%ctp_file = trim(adjustl(file_base))//'.ctp.nc'
+  
    if (verbose) write(*,*) '>>>>>>>>>>>>>>> Leaving preparation()'
 
 end subroutine preparation

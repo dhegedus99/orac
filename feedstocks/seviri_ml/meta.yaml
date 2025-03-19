@@ -1,0 +1,93 @@
+{% set version = "1.0" %}
+{% set build = 0 %}
+
+{% set mpi = mpi or 'nompi' %}
+
+package:
+  name: seviri_ml
+  version: {{ version }}
+
+source:
+  - git_url: https://github.com/danielphilipp/seviri_ml
+    patches:
+      - make.patch
+      - tensor_import.patch
+      - test.patch
+      - module.patch
+  - path: __init__.py
+  - path: setup.py
+  - path: run_test.sh
+
+build:
+  number: {{ build }}
+  {% if mpi != 'nompi' %}
+  {% set mpi_prefix = "mpi_" + mpi %}
+  {% else %}
+  {% set mpi_prefix = "nompi" %}
+  {% endif %}
+  # add build string so packages can depend on
+  # mpi or nompi variants explicitly:
+  # `rttov * mpi_mpich_*` for mpich
+  # `rttov * mpi_*` for any mpi
+  # `rttov * nompi_*` for no mpi
+  string: {{ mpi_prefix }}_h{{ PKG_HASH }}_{{ build }}
+
+  # mpi builds require the right mpi
+  # non-mpi builds *do not* appear to require non-mpi builds
+  # at least not always
+  {% if mpi != 'nompi' %}
+  {% set build_pin = mpi_prefix + '_*' %}
+  {% else %}
+  {% set build_pin = '' %}
+  {% endif %}
+
+  run_exports:
+    - {{ pin_subpackage('seviri_ml', max_pin='x.x') }}
+
+requirements:
+  build:
+    - {{ compiler('c') }}
+    - {{ compiler('fortran') }}
+    - python
+    - make
+  host:
+    - {{ mpi }}  # [mpi != 'nompi']
+    - python
+    - numpy
+    - libnetcdf
+    - libnetcdf * {{ mpi_prefix }}_*
+    - netcdf-fortran
+    - netcdf-fortran * {{ mpi_prefix }}_*
+    - libxcrypt
+  run:
+    - {{ mpi }}  # [mpi != 'nompi']
+    - python
+    - {{ pin_compatible('numpy') }}
+    - libnetcdf * {{ mpi_prefix }}_*
+    - netcdf-fortran * {{ mpi_prefix }}_*
+    - dask
+    - joblib
+    - scikit-learn
+    - scipy
+    - tensorflow >=2.4.1,<2.13.0
+
+test:
+  source_files:
+    - test/py_test.py
+    - test/seviri_ml_test_201907011200.nc
+  requires:
+    - cartopy
+    - hdf5
+    - matplotlib
+    - netcdf4
+    - xarray
+
+about:
+  home: https://github.com/danielphilipp/seviri_ml
+  license: CC
+  summary: 'Machine learning module to derive cloud properties from SEVIRI'
+
+extra:
+  recipe-maintainers:
+    - orac_cc
+    - adamcpovey

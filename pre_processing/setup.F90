@@ -783,7 +783,18 @@ subroutine setup_avhrr(args, channel_ids_user, channel_info, verbose)
 
          if (k .eq. 4) then
             ! which avhrr are we processing?
-            args%platform = trim(adjustl(str2))
+            str2 = adjustl(str2)
+            if (str2(1:4) == 'noaa') then
+               args%platform = 'NOAA-' // trim(str2(5:))
+            else if (str2(1:6) == 'metopa' .or. str2(1:7) == 'metop02') then
+               args%platform = 'Metop-A'
+            else if (str2(1:6) == 'metopb' .or. str2(1:7) == 'metop01') then
+               args%platform = 'Metop-B'
+            else if (str2(1:6) == 'metopc' .or. str2(1:7) == 'metop03') then
+               args%platform = 'Metop-C'
+            else
+               args%platform = trim(str2)
+            end if
          end if
       end do
 
@@ -840,8 +851,18 @@ subroutine setup_avhrr(args, channel_ids_user, channel_info, verbose)
       j = index(str1, '/', back=.true.)
       str2 = str1
       str1 = str1(1:j-1)
-      str2 = str2(j+1:)
-      args%platform = trim(adjustl(str2))
+      str2 = adjustl(str2(j+1:))
+      if (str2(1:4) == 'noaa') then
+         args%platform = 'NOAA-' // trim(str2(5:))
+      else if (str2(1:6) == 'metopa' .or. str2(1:7) == 'metop02') then
+         args%platform = 'Metop-A'
+      else if (str2(1:6) == 'metopb' .or. str2(1:7) == 'metop01') then
+         args%platform = 'Metop-B'
+      else if (str2(1:6) == 'metobc' .or. str2(1:7) == 'metop03') then
+         args%platform = 'Metop-C'
+      else
+         args%platform = trim(str2)
+      end if
 
       ! get year, month, day, hour and minute as integers
       read(args%cyear, '(I4)') args%year
@@ -1087,6 +1108,142 @@ subroutine setup_modis(args, channel_ids_user, channel_info, verbose)
 end subroutine setup_modis
 
 
+
+subroutine setup_python(args, channel_ids_user, channel_info, verbose)
+
+   use calender_m
+   use orac_ncdf_m
+   use parsing_m
+   use channel_structures_m
+   use preproc_constants_m
+
+   implicit none
+
+   type(setup_args_t),   intent(inout) :: args
+   integer, pointer,     intent(inout) :: channel_ids_user(:)
+   type(channel_info_t), intent(inout) :: channel_info
+   logical,              intent(in)    :: verbose
+
+   integer :: nchans, nchans_total
+   integer :: fid
+   integer :: status
+
+   character(attribute_length_long) :: start_time, end_time
+
+   integer, dimension(6) :: channel_ids_default
+
+   real, dimension(:), allocatable    :: all_channel_wl_abs, all_channel_lnd_uncertainty, all_channel_sea_uncertainty
+   real, dimension(:), allocatable    :: all_channel_fractional_uncertainty, all_channel_minimum_uncertainty, all_channel_numerical_uncertainty
+   integer, dimension(:), allocatable :: all_channel_sw_flag,  all_channel_lw_flag, all_channel_ids_rttov_coef_sw, all_channel_ids_rttov_coef_lw
+   integer, dimension(:), allocatable :: all_map_ids_abs_to_ref_band_land, all_map_ids_abs_to_ref_band_sea, all_map_ids_abs_to_snow_and_ice
+   integer, dimension(:), allocatable :: all_map_ids_view_number
+
+   if (verbose) write(*,*) '<<<<<<<<<<<<<<< Entering setup_python()'
+
+   call ncdf_open(fid, args%l1b_file, 'setup_python()')
+   ! Read actual size of the netCDF4 file
+   nchans  = ncdf_dim_length(fid, 'nc', 'setup_python()')  
+   call ncdf_get_single_attribute_int(fid, 'max_chan_count', nchans_total)
+
+   allocate(channel_ids_user(nchans))
+
+   args%n_across_track  = ncdf_dim_length(fid, 'nx', 'setup_python()')
+   args%n_along_track = ncdf_dim_length(fid, 'ny', 'setup_python()')
+
+   call ncdf_get_arr_attribute_int(fid, 'channel_ids_default', channel_ids_default)
+   call ncdf_get_arr_attribute_int(fid, 'channel_ids', channel_ids_user)
+
+   ! Read the start and end time of the file
+   call ncdf_get_single_attribute_str(fid, 'start_time', start_time)
+   call ncdf_get_single_attribute_str(fid, 'end_time', end_time)
+
+   allocate(all_channel_wl_abs(nchans_total))
+   allocate(all_channel_lnd_uncertainty(nchans_total))
+   allocate(all_channel_sea_uncertainty(nchans_total))
+   allocate(all_channel_sw_flag(nchans_total))
+   allocate(all_channel_lw_flag(nchans_total))
+   allocate(all_channel_ids_rttov_coef_sw(nchans_total))
+   allocate(all_channel_ids_rttov_coef_lw(nchans_total))
+   allocate(all_map_ids_abs_to_ref_band_land(nchans_total))
+   allocate(all_map_ids_abs_to_ref_band_sea(nchans_total))
+   allocate(all_map_ids_abs_to_snow_and_ice(nchans_total))
+   allocate(all_map_ids_view_number(nchans_total))
+   allocate(all_channel_fractional_uncertainty(nchans_total))
+   allocate(all_channel_minimum_uncertainty(nchans_total))
+   allocate(all_channel_numerical_uncertainty(nchans_total))
+
+
+   if (verbose) write(*,*) 'args%l1b_file: ', trim(args%l1b_file)
+   if (verbose) write(*,*) 'args%geo_file: ', trim(args%geo_file)
+
+   ! check if l1b and geo files identical
+   if (trim(adjustl(args%l1b_file)) .ne. &
+       trim(adjustl(args%geo_file))) then
+      write(*,*)
+      write(*,*) 'ERROR: setup_python(): Geolocation and L1b files are ' // &
+           'for different times'
+      write(*,*) 'args%l1b_file: ', trim(adjustl(args%l1b_file))
+      write(*,*) 'args%geo_file: ', trim(adjustl(args%geo_file))
+
+      stop error_stop_code
+   end if
+
+   ! Read platform and sensor names.
+   call ncdf_get_single_attribute_str(fid, 'platform', args%platform)
+   call ncdf_get_single_attribute_str(fid, 'sensor', args%sensor)
+
+   if (verbose) write(*,*) "Satellite is: ", args%platform
+
+   ! Get channel attributes
+   call ncdf_get_arr_attribute_real(fid, 'all_channel_wl_abs', all_channel_wl_abs)
+   call ncdf_get_arr_attribute_real(fid, 'all_channel_lnd_uncertainty', all_channel_lnd_uncertainty)
+   call ncdf_get_arr_attribute_real(fid, 'all_channel_sea_uncertainty', all_channel_sea_uncertainty)
+   call ncdf_get_arr_attribute_int(fid, 'all_channel_sw_flag', all_channel_sw_flag)
+   call ncdf_get_arr_attribute_int(fid, 'all_channel_lw_flag', all_channel_lw_flag)
+   call ncdf_get_arr_attribute_int(fid, 'all_channel_ids_rttov_coef_sw', all_channel_ids_rttov_coef_sw)
+   call ncdf_get_arr_attribute_int(fid, 'all_channel_ids_rttov_coef_lw', all_channel_ids_rttov_coef_lw)
+   call ncdf_get_arr_attribute_int(fid, 'all_map_ids_abs_to_ref_band_land', all_map_ids_abs_to_ref_band_land)
+   call ncdf_get_arr_attribute_int(fid, 'all_map_ids_abs_to_ref_band_sea', all_map_ids_abs_to_ref_band_sea)
+   call ncdf_get_arr_attribute_int(fid, 'all_map_ids_abs_to_snow_and_ice', all_map_ids_abs_to_snow_and_ice)
+   call ncdf_get_arr_attribute_int(fid, 'all_map_ids_view_number', all_map_ids_view_number)
+   call ncdf_get_arr_attribute_real(fid, 'all_channel_fractional_uncertainty', all_channel_fractional_uncertainty)
+   call ncdf_get_arr_attribute_real(fid, 'all_channel_minimum_uncertainty', all_channel_minimum_uncertainty)
+   call ncdf_get_arr_attribute_real(fid, 'all_channel_numerical_uncertainty', all_channel_numerical_uncertainty)
+   
+   ! get year, doy, hour and minute as strings
+   args%cyear = start_time(1:5)
+   args%cmonth = start_time(6:7)
+   args%cday = start_time(9:10)
+   args%chour = start_time(12:13)
+   args%cminute = start_time(15:16)
+
+   read(args%cyear, '(I4)') args%year
+   read(args%cmonth, '(I2)') args%month
+   read(args%cday, '(I2)') args%day
+   read(args%chour, '(I2)') args%hour
+   read(args%cminute, '(I2)') args%minute
+
+   call GREG2DOY(args%year, args%month, args%day, args%doy)
+   write(args%cdoy, '(i3.3)') args%doy
+   
+   ! now set up the channels
+   call common_setup(channel_info, channel_ids_user, channel_ids_default, &
+      all_channel_wl_abs, all_channel_sw_flag, all_channel_lw_flag, &
+      all_channel_ids_rttov_coef_sw, all_channel_ids_rttov_coef_lw, &
+      all_map_ids_abs_to_ref_band_land, all_map_ids_abs_to_ref_band_sea, &
+      all_map_ids_abs_to_snow_and_ice, all_map_ids_view_number, &
+      all_channel_fractional_uncertainty, all_channel_minimum_uncertainty, &
+      all_channel_numerical_uncertainty, all_channel_lnd_uncertainty, &
+      all_channel_sea_uncertainty, nchans)
+      
+   ! Close the netCDF4 file
+   call ncdf_close(fid, 'setup_python()')
+
+   if (verbose) write(*,*) '>>>>>>>>>>>>>>> Leaving setup_python()'
+
+end subroutine setup_python
+
+
 subroutine setup_seviri(args, channel_ids_user, channel_info, verbose)
 
    use calender_m
@@ -1193,10 +1350,10 @@ subroutine setup_seviri(args, channel_ids_user, channel_info, verbose)
       !
       if (index1 .ne. 0) then
          index2 = index(args%l1b_file, '-')
-         args%platform = args%l1b_file(index2-4:index2-1)
+         args%platform = 'MSG-' // args%l1b_file(index2-1:index2-1)
       else
          index2 = index(args%l1b_file, '__-')
-         args%platform = args%l1b_file(index2+3:index2+6)
+         args%platform = 'MSG-' // args%l1b_file(index2+6:index2+6)
       end if
       index2 = index2 + index(args%l1b_file(index2 + 1:), '-')
       index2 = index2 + index(args%l1b_file(index2 + 1:), '-')
@@ -1398,11 +1555,11 @@ subroutine setup_slstr(args, source_attributes, channel_ids_user, &
    index2 = 1
    index2 = index(args%l1b_file, "S3A")
    if (index2 .gt. 1) then
-      args%platform = "Sentinel3a"
+      args%platform = "Sentinel-3a"
    else
       index2 = index(args%l1b_file, "S3B")
       if (index2 .gt. 1) then
-         args%platform = "Sentinel3b"
+         args%platform = "Sentinel-3b"
       else
          write(*,*) "ERROR: Platform must be S3A or S3B"
          stop
@@ -1577,7 +1734,7 @@ subroutine setup_viirs_mband(args, channel_ids_user, channel_info, verbose)
    if (verbose) write(*,*) 'args%geo_file: ', trim(args%geo_file)
 
    ! Assume Suomi-NPP by default
-   args%platform = "SuomiNPP"
+   args%platform = "Suomi-NPP"
    ! check if l1b and geo file are of the same granule
    index1 = index(args%l1b_file, 'npp_d', .true.)
    index2 = index(args%geo_file, 'npp_d', .true.)
@@ -1589,7 +1746,7 @@ subroutine setup_viirs_mband(args, channel_ids_user, channel_info, verbose)
          write(*,*)'ERROR: setup_viirs_iband(): Unsupported platform'
          stop error_stop_code
       end if
-      args%platform = "NOAA20"
+      args%platform = "NOAA-20"
    end if
 
 
@@ -1725,7 +1882,7 @@ subroutine setup_viirs_iband(args, channel_ids_user, channel_info, verbose)
    if (verbose) write(*,*) 'args%geo_file: ', trim(args%geo_file)
 
    ! Assume Suomi-NPP by default
-   args%platform = "SuomiNPP"
+   args%platform = "Suomi-NPP"
    ! check if l1b and geo file are of the same granule
    index1 = index(args%l1b_file, 'npp_d', .true.)
    index2 = index(args%geo_file, 'npp_d', .true.)
@@ -1737,7 +1894,7 @@ subroutine setup_viirs_iband(args, channel_ids_user, channel_info, verbose)
          write(*,*)'ERROR: setup_viirs_iband(): Unsupported platform'
          stop error_stop_code
       end if
-      args%platform = "NOAA20"
+      args%platform = "NOAA-20"
    end if
 
 
@@ -2020,13 +2177,13 @@ subroutine determine_seviri_platform_from_metoffice(l1_file, platform)
    ! https://github.com/pytroll/mpop/blob/master/mpop/satin/msg_seviri_hdf.py#L30
    select case (platform_number)
    case(321)
-      platform = "MSG1"
+      platform = "MSG-1"
    case(322)
-      platform = "MSG2"
+      platform = "MSG-2"
    case(323)
-      platform = "MSG3"
+      platform = "MSG-3"
    case(324)
-      platform = "MSG4"
+      platform = "MSG-4"
    case default
       write(*,*) "ERROR: Unrecognised platform number ", platform_number
       stop error_stop_code
@@ -2055,7 +2212,7 @@ subroutine setup_imager(args, opts, source_attributes, channel_info, verbose)
    implicit none
 
    type(setup_args_t),        intent(inout) :: args
-   type(preproc_opts_t),      intent(in)    :: opts
+   type(preproc_opts_t),      intent(inout) :: opts
    type(source_attributes_t), intent(inout) :: source_attributes
    type(channel_info_t),      intent(inout) :: channel_info
    logical,                   intent(in)    :: verbose
@@ -2113,6 +2270,9 @@ subroutine setup_imager(args, opts, source_attributes, channel_info, verbose)
 
       ! get dimensions of the modis granule
       call read_modis_dimensions(args%geo_file, args%n_across_track, args%n_along_track)
+
+   case('PYTHON')
+      call setup_python(args, opts%channel_ids, channel_info, verbose)
 
    case('SEVIRI')
       call setup_seviri(args, opts%channel_ids, channel_info, verbose)

@@ -421,6 +421,7 @@ class Swath(Mappable):
 
     def set_cldflag(self, size=3, low_res=False, cld_limit=3):
         """GET's cloud clearing algorithm from ORAC 3.02."""
+        from cv2 import morphologyEx, MORPH_TOPHAT
         from scipy.signal import convolve2d
 
         self._cldflag = np.zeros(self.shape, dtype='int')
@@ -463,7 +464,6 @@ class Swath(Mappable):
 
             Top Hat is the difference between the input and the opening of the
             image. The opening is erode followed by dilate."""
-            from cv2 import morphologyEx, MORPH_TOPHAT
 
             # tmp = np.floor(255 * data)
             tmp = data.filled(0.)
@@ -724,12 +724,17 @@ class Swath(Mappable):
 
     def __getitem__(self, name):
         """Returns an arbitrary data field, ensuring it's a MaskedArray."""
-        data = self.get_variable(name)[...]
-        if not isinstance(data, np.ma.MaskedArray):
-            data = np.ma.masked_invalid(data)
+        try:
+            data = self.get_variable(name)[...]
+            if not isinstance(data, np.ma.MaskedArray):
+                data = np.ma.masked_invalid(data)
 
-        data[self.mask] = np.ma.masked
-        return data
+            data[self.mask] = np.ma.masked
+            return data
+        except IndexError:
+            # The above assumes data.shape == self.mask.shape
+            # TODO: Generalise that to channel-indexed fields
+            return self.get_variable(name)[...]
 
     # -------------------------------------------------------------------
     # Masking functions

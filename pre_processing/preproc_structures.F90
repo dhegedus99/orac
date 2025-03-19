@@ -120,6 +120,9 @@ module preproc_structures_m
       logical                    :: use_predef_geo
       logical                    :: use_predef_lsm
       logical                    :: use_swansea_climatology
+      logical                    :: use_seviri_ann_cma_cph
+      logical                    :: use_seviri_ann_ctp_fg
+      logical                    :: use_seviri_ann_mlay
       integer                    :: mcd43_max_qaflag
 
       character(len=path_length) :: ext_lsm_path
@@ -176,15 +179,17 @@ module preproc_structures_m
       character(len=file_length) :: msi_file    ! Radiances/brightness temps
       character(len=file_length) :: prtm_file   ! Atmospheric RTTOV inputs
       character(len=file_length) :: swrtm_file  ! Shortwave RTTOV inputs
+      character(len=file_length) :: ctp_file    ! CTP for first guess
    end type preproc_paths_t
 
 
    type setup_args_t
-      character(len=path_length)     :: l1b_file ! Path to satellite swath
-      character(len=path_length)     :: geo_file ! Path to geolocation data
+      character(len=path_length)     :: l1b_file     ! Path to satellite swath
+      character(len=path_length)     :: geo_file     ! Path to geolocation data
 
-      character(len=sensor_length)   :: sensor   ! Name of instrument
-      character(len=platform_length) :: platform ! Name of satellite it is on
+      character(len=sensor_length)   :: sensor       ! Name of instrument
+      character(len=sensor_length)   :: sensor_rdr   ! Name of data reader
+      character(len=platform_length) :: platform     ! Name of satellite it is on
       ! Date as strings
       character(len=date_length)     :: cyear, cmonth, cday
       character(len=date_length)     :: cdoy, chour, cminute, csecond

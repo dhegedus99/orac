@@ -16,11 +16,10 @@ source:
     - conda.patch
     - arch.patch
     - loop.patch
+    - tests.patch
 
 build:
   number: {{ build }}
-  run_exports:
-    - {{ pin_subpackage('rttov', max_pin='x.x') }}
   {% if mpi != 'nompi' %}
   {% set mpi_prefix = "mpi_" + mpi %}
   {% else %}
@@ -33,14 +32,26 @@ build:
   # `rttov * nompi_*` for no mpi
   string: {{ mpi_prefix }}_h{{ PKG_HASH }}_{{ build }}
 
+  # mpi builds require the right mpi
+  # non-mpi builds *do not* appear to require non-mpi builds
+  # at least not always
+  {% if mpi != 'nompi' %}
+  {% set build_pin = mpi_prefix + '_*' %}
+  {% else %}
+  {% set build_pin = '' %}
+  {% endif %}
+
+  run_exports:
+    - {{ pin_subpackage('rttov', max_pin='x.x') }} {{ build_pin }}
+
 requirements:
   build:
     - {{ compiler('c') }}
     - {{ compiler('fortran') }}
+    - python
+    - numpy
     - make
-    - numpy {{ numpy }}
     - perl
-    - python {{ python }}
   host:
     - python
     - numpy
@@ -53,6 +64,7 @@ requirements:
     - libnetcdf * {{ mpi_prefix }}_*
     - netcdf-fortran
     - netcdf-fortran * {{ mpi_prefix }}_*
+    - libxcrypt
   run:
     - python
     - {{ pin_compatible('numpy') }}

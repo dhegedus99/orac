@@ -316,6 +316,8 @@
 ! 2020/03/02, ATP: Add support for AHI subsetting.
 ! 2021/03/10, AP: Remove command line arguments.
 ! 2021/03/14, AP: Move setup selection into a dedicated routine.
+! 2023/06/26, GT: Added a 1-hour default for the NWP time factor for BADC
+!                 ERA5 data (nwp_flag = 2).
 !
 ! Bugs:
 ! See http://proj.badc.rl.ac.uk/orac/report/1
@@ -480,7 +482,6 @@ subroutine orac_preproc(mytask, ntasks, lower_bound, upper_bound, driver_path_fi
    preproc_opts%nwp_fnames%nwp_path2(2)  = ' '
    preproc_opts%nwp_fnames%nwp_path3(2)  = ' '
    preproc_opts%nwp_nlevels              = 0
-   preproc_opts%nwp_time_factor          = 6.
    preproc_opts%use_l1_land_mask         = .false.
    preproc_opts%use_occci                = .false.
    preproc_opts%occci_path               = ' '
@@ -500,6 +501,9 @@ subroutine orac_preproc(mytask, ntasks, lower_bound, upper_bound, driver_path_fi
    preproc_opts%do_co2                   = .true.
    preproc_opts%use_swansea_climatology  = .false.
    preproc_opts%swansea_gamma            = 0.3
+   preproc_opts%use_seviri_ann_cma_cph   = .false.
+   preproc_opts%use_seviri_ann_ctp_fg    = .false.
+   preproc_opts%use_seviri_ann_mlay      = .false.
    preproc_opts%mcd43_max_qaflag         = 5
 
    ! When true, the offset between the nadir and oblique views is read from
@@ -578,6 +582,9 @@ subroutine orac_preproc(mytask, ntasks, lower_bound, upper_bound, driver_path_fi
       call parse_optional(label, value, preproc_opts)
    end do
 
+   ! Ensure sensor name and reader name match
+   granule%sensor_rdr = granule%sensor
+
    close(11)
 
    ! Set this since it was removed from the command line but not removed from
@@ -616,6 +623,14 @@ subroutine orac_preproc(mytask, ntasks, lower_bound, upper_bound, driver_path_fi
    if (preproc_opts%n_channels .ne. 0 .and. .not. associated(preproc_opts%channel_ids)) then
       write(*,*) 'ERROR: options n_channels and channel_ids must be used together'
       stop error_stop_code
+   end if
+
+   ! If we're reading BADC ERA5 data, we default to one file every hour,
+   ! otherwise assume it's one every six hours.
+   if (nwp_flag .eq. 2) then
+      preproc_opts%nwp_time_factor       = 1.
+   else
+      preproc_opts%nwp_time_factor       = 6.
    end if
 
    ! Check if SatWx is available, if not then don't do cloud emissivity stuff
@@ -701,8 +716,9 @@ subroutine orac_preproc(mytask, ntasks, lower_bound, upper_bound, driver_path_fi
 
    if (granule%startx.ge.1 .and. granule%endx.ge.1 .and. &
         granule%starty.ge.1 .and. granule%endy.ge.1) then
-      if ( trim(adjustl(granule%sensor)) .eq. 'VIIRSI' .or. &
-           trim(adjustl(granule%sensor)) .eq. 'VIIRSM') then
+      if ( trim(adjustl(granule%sensor_rdr)) .eq. 'VIIRSI' .or. &
+           trim(adjustl(granule%sensor_rdr)) .eq. 'VIIRSM' .or. &
+           trim(adjustl(granule%sensor_rdr)) .eq. 'PYTHON') then
          write(*,*) 'ERROR: subsetting not supported for ', trim(granule%sensor)
          stop error_stop_code
       end if
@@ -820,8 +836,8 @@ subroutine orac_preproc(mytask, ntasks, lower_bound, upper_bound, driver_path_fi
       if (verbose) write(*,*) 'Allocate imager and surface structures'
       call allocate_imager_structures(imager_geolocation, imager_angles, &
            imager_flags, imager_time, imager_measurements, imager_pavolonis, &
-           imager_cloud, channel_info)
-
+           imager_cloud, channel_info, preproc_opts%use_seviri_ann_ctp_fg, &
+           preproc_opts%use_seviri_ann_mlay)
       call allocate_surface_structures(surface, imager_geolocation, channel_info, &
            include_full_brdf)
 
@@ -830,7 +846,6 @@ subroutine orac_preproc(mytask, ntasks, lower_bound, upper_bound, driver_path_fi
       call read_imager(granule, preproc_opts, aatsr_calib_path_file, &
            imager_geolocation, imager_angles, imager_flags, imager_time, &
            imager_measurements, channel_info, global_atts, verbose)
-
 #ifdef WRAPPER
       ! do not process this orbit if no valid lat/lon data available
       mask = imager_geolocation%latitude.gt.sreal_fill_value .and. &
@@ -991,7 +1006,9 @@ subroutine orac_preproc(mytask, ntasks, lower_bound, upper_bound, driver_path_fi
            call cloud_type(channel_info, granule%sensor, surface, imager_flags, &
                 imager_angles, imager_geolocation, imager_measurements, &
                 imager_pavolonis, ecmwf, granule%platform, granule%doy, preproc_opts%do_ironly, &
-                do_spectral_response_correction, verbose)
+                do_spectral_response_correction, preproc_opts%use_seviri_ann_cma_cph, &
+                preproc_opts%use_seviri_ann_ctp_fg, preproc_opts%use_seviri_ann_mlay, &
+                preproc_opts%do_nasa, verbose)
          end if
       end if
 
@@ -1056,7 +1073,8 @@ subroutine orac_preproc(mytask, ntasks, lower_bound, upper_bound, driver_path_fi
       call netcdf_output_create(output_path, out_paths, granule, global_atts, &
            source_atts, preproc_dims, imager_angles, imager_geolocation, &
            netcdf_info, channel_info, include_full_brdf, nwp_flag, &
-           preproc_opts%do_cloud_emis, verbose)
+           preproc_opts%do_cloud_emis, preproc_opts%use_seviri_ann_ctp_fg, &
+           preproc_opts%use_seviri_ann_mlay, verbose)
 
       ! perform RTTOV calculations
       if (verbose) write(*,*) 'Perform RTTOV calculations'
@@ -1113,7 +1131,8 @@ subroutine orac_preproc(mytask, ntasks, lower_bound, upper_bound, driver_path_fi
          call netcdf_output_write_swath(imager_flags, imager_angles, &
               imager_geolocation, imager_measurements, imager_cloud, imager_time, &
               imager_pavolonis, netcdf_info, channel_info, surface, &
-              include_full_brdf, preproc_opts%do_cloud_emis)
+              include_full_brdf, preproc_opts%do_cloud_emis, &
+              preproc_opts%use_seviri_ann_ctp_fg, preproc_opts%use_seviri_ann_mlay)
 
          ! close output netcdf files
          if (verbose) write(*,*)'Close netcdf output files'
@@ -1148,11 +1167,12 @@ subroutine orac_preproc(mytask, ntasks, lower_bound, upper_bound, driver_path_fi
       call netcdf_output_write_swath(imager_flags, imager_angles, &
            imager_geolocation, imager_measurements, imager_cloud, imager_time, &
            imager_pavolonis, netcdf_info, channel_info, surface, include_full_brdf, &
-           preproc_opts%do_cloud_emis)
+           preproc_opts%do_cloud_emis, preproc_opts%use_seviri_ann_ctp_fg, &
+           preproc_opts%use_seviri_ann_mlay)
 
       ! close output netcdf files
       if (verbose) write(*,*)'Close netcdf output files'
-      call netcdf_output_close(netcdf_info)
+      call netcdf_output_close(netcdf_info, preproc_opts%use_seviri_ann_ctp_fg)
 
 #endif
 
