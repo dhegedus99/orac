@@ -19,7 +19,7 @@ requirements:
   host:
     - python
     - cartopy
-    - cf-units
+    - cftime
     - h5py
     - matplotlib
     - netcdf4
@@ -30,7 +30,7 @@ requirements:
   run:
     - python
     - cartopy
-    - cf-units
+    - cftime
     - h5py
     - matplotlib
     - netcdf4

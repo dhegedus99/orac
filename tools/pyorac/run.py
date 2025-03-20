@@ -187,7 +187,7 @@ def call_reformat(args, log_path, exe, out_file, dependency=None):
             # Parse job ID # and return it to the caller
             jid = defaults.BATCH.parse_out(out, 'ID')
             return jid
-        except CalledProcessError as err:
+        except CalledProcessError:
             raise defin.OracError('Failed to queue job ' + exe)
         except SyntaxError as err:
             raise defin.OracError(str(err))
@@ -227,6 +227,7 @@ def process_all(orig_args):
     out_files = []  # All files that would be made (facilitates --dry_run)
     jid_main = []  # ID no. for each queued job
     args.in_dir = [args.out_dir]
+    jid = None
     for sett in args.settings:
         phs_args = deepcopy(args)
         parsed_settings_arguments = pars.parse_args(sett.split())

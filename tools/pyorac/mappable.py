@@ -1,4 +1,4 @@
-"""mappable) Routines to plot global data, mainly satellite swaths, on a map.
+"""mappable: Routines to plot global data, mainly satellite swaths, on a map.
 #
 # 18 Jan 2017, ACP: Initial version
 # 12 Apr 2017, ACP: Move to object that holds data
@@ -29,7 +29,7 @@ class Mappable(object):
     Plotting functions:
         transform (cartopy projection): Default PlateCarree(central_longitude).
         mask (bool ndarray): Data to not plot.
-        minimise (bool): If True (the default), masks all data outside of the
+        minimise (bool): If True (the default), masks all data outside the
             extent of the axes to increase plotting speed.
         slices (:obj:`slice`): Slice for all arrays (except data).
     """
@@ -122,11 +122,11 @@ class Mappable(object):
         kwargs.setdefault('transform', self.transform)
         kwargs.setdefault('rasterized', True)
 
-        # Mask points outside of the defined extent to save time
+        # Mask points outside the defined extent to save time
         sl = kwargs.pop("slices", (slice(None), slice(None)))
         minimise = kwargs.pop('minimise', True)
         if minimise:
-            # Mask any data outside of the defined extent
+            # Mask any data outside the defined extent
             extent = ax.get_extent()
             try:
                 data_mask = np.logical_or(
