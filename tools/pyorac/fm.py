@@ -42,7 +42,6 @@ import os.path
 
 from abc import ABC, abstractmethod
 from netCDF4 import Dataset
-from scipy.interpolate import RegularGridInterpolator
 
 
 RHO_NAMES = ("rho_0v", "rho_dv", "rho_0d", "rho_dd")
@@ -454,6 +453,26 @@ class OracForwardModel(ABC):
     This is intended to be legible, not efficient.
     """
     description = "Abstract"
+    coverage = None
+    surface_temperature = None
+    top_pressure = None
+    optical_depth = None
+    effective_radius = None
+    lut = None
+    t_dv_from_t_0d = None
+    t_dv = None
+    t_dd = None
+    r_dv = None
+    r_dd = None
+    ext = None
+    ext_ratio = None
+    r_0v = None
+    r_0d = None
+    t_0d = None
+    t_00 = None
+    t_vd = None
+    t_vv = None
+    e_md = None
 
     def __init__(self, spixel, lut, **kwargs):
         """Setup all of the terms; unspecified state variables are given prior from LUT"""
@@ -477,7 +496,7 @@ class OracForwardModel(ABC):
                 # Aerosols have type-specific priors
                 for parameter in lut._particle.inv:
                     if parameter.var == 'ITau':
-                        prior["optical_depth"] = 10.**paramter.ap
+                        prior["optical_depth"] = 10.**parameter.ap
                     elif parameter.var == 'IRe':
                         prior["effective_radius"] = parameter.ap
 
@@ -490,21 +509,21 @@ class OracForwardModel(ABC):
             self.__dict__.update(upd)
             self._set_nuclei_terms()
 
-        if upd := {k:v for k,v in kwargs.items() if k in ("coverage")}:
+        if upd := {k:v for k,v in kwargs.items() if k in ("coverage",)}:
             self.__dict__.update(upd)
 
-    def _set_nuclei_terms(self, use_these):
+    def _set_nuclei_terms(self, ch_subset=None):
         """Interpolate all look-up tables to given tau and r_eff"""
 
         # Work out the SPixel -> LUT indexing
-        self.lut_ind = [np.argmax(self.lut.channels[use_these] == ch)
+        self.lut_ind = [np.argmax(self.lut.channels[ch_subset] == ch)
                         for ch in self.pixel.channels]
         assert len(np.unique(self.lut_ind)) == len(self.lut_ind)
 
         # Only pass this keyword if we actively asked for it
-        try:
+        if self.t_dv_from_t_0d is not None:
             kwargs = dict(t_dv_from_t_0d=self.t_dv_from_t_0d)
-        except AttributeError:
+        else:
             kwargs = dict()
 
         # This will silently allow unavailable channels through
@@ -538,7 +557,7 @@ class OracForwardModel(ABC):
 
     def __str__(self):
         return (f"{self.description} forward model\n"
-                f"{self.pixel.channels:}")
+                f"{self.pixel.channels}")
 
 
 class SolarForwardModel(OracForwardModel):
@@ -548,6 +567,9 @@ class SolarForwardModel(OracForwardModel):
     Adjoint not yet implemented as you shouldn't use this in optimisation.
     """
     DIFFUSE_TRANSMISSION_FACTOR = 1.0
+    sg = None
+    ss = None
+    sp = None
 
     def __init__(self, spixel, lut, **kwargs):
         if np.any(np.logical_not(spixel.solar)):
@@ -579,7 +601,7 @@ class SolarForwardModel(OracForwardModel):
             self._set_top_pressure()
 
         if upd := {k:v for k,v in kwargs.items() if k in RHO_NAMES}:
-            self._set_oxford_surface(upd)
+            self._set_oxford_surface(**upd)
 
         if upd := {k:v for k,v in kwargs.items() if k in ("ss", "sp", "sg")}:
             if ("ss" in upd) != ("sp" in upd):
@@ -598,7 +620,7 @@ class SolarForwardModel(OracForwardModel):
                 upd["sp"] = upd["sp"][view]
 
             self.__dict__.update(upd)
-            self._init_swansea_surface()
+            self._set_swansea_surface()
 
     def _set_nuclei_terms(self):
         super()._set_nuclei_terms(self.lut.solar)
@@ -638,24 +660,26 @@ class SolarForwardModel(OracForwardModel):
                                  kwargs[ratio_rho_name])
                         break
                 else:
-                    raise ValueError("Must provide one of "+", ".join(rho_names))
+                    raise ValueError("Must provide one of "+", ".join(RHO_NAMES))
             assert value.size == self.nch
             setattr(self, rho_name, value)
 
     def this_below(self, lut, **kwargs):
-        """Generate model for a specified layer above this one"""
-        # Calculate four-term reflectance of this cloud
-        ref_0v = self.reflectance() * self.sec_0[0]
-        ref_0d = (self.coverage * self.tac_0 * self.tac_d * e_0d +
-                  (1.-self.coverage) * self.rho_0d * self.tsf_0 * self.tsf_d)
-        ref_dv = (self.coverage * self.tac_0 * self.tac_d * e_dv +
-                  (1.-self.coverage) * self.rho_dv * self.tsf_d * self.tsf_v)
-        ref_dd = (self.coverage * self.tac_d * self.tac_d * e_dd +
-                  (1.-self.coverage) * self.rho_dd * self.tsf_d * self.tsf_d)
+        """Generate model for a specified layer above this one NOT TESTED"""
+        from copy import copy
+
         # Remove atmosphere below lower layer in new case
-        upper_pixel = copy(pixel)
+        upper_pixel = copy(self.pixel)
         upper_pixel.tbc_sw = upper_pixel.tbc_sw / self.tbc
-        upper_pixel.rs = rho_0v * tsf_0v
+        upper_pixel.rs = self.rho_0v * self.tac_0 * self.tbc_0 * self.tac_v * self.tbc_v
+        # Calculate four-term reflectance of this cloud
+        upper_pixel.rho_0v = self.reflectance() * self.sec_0[0]
+        upper_pixel.rho_0d = (self.coverage * self.tac_0 * self.tac_d * self.e_0d +
+                  (1.-self.coverage) * self.rho_0d * self.tac_0 * self.tbc_0 * self.tac_d * self.tbc_d)
+        upper_pixel.rho_dv = (self.coverage * self.tac_0 * self.tac_d * self.e_dv +
+                  (1.-self.coverage) * self.rho_dv * self.tac_d * self.tbc_d * self.tsf_v)
+        upper_pixel.rho_dd = (self.coverage * self.tac_d * self.tac_d * self.e_dd +
+                  (1.-self.coverage) * self.rho_dd * self.tac_d * self.tbc_d * self.tac_d * self.tbc_d)
         # Remove atmosphere above this lower layer
         self.tac = np.ones(self.nch)
         self.description += " lower layer"
@@ -668,7 +692,7 @@ class SolarForwardModel(OracForwardModel):
         return self.tac_0 * self.tac_v * (self.r_0v + self.d())
 
     def _clear_r(self):
-        return self.pixel.rs * self.tsf_0 * self.tsf_v
+        return self.pixel.rs * self.tac_0 * self.tbc_0 * self.tac_v * self.tbc_v
 
     def reflectance(self):
         return self._total_r()
@@ -763,7 +787,6 @@ class SolarBrdfEq2(SolarBrdfBase):
     description = "Solar BRDF Form 2"
     def __init__(self, *args, **kwargs):
         super().__init__(self, *args, **kwargs)
-        self.alb /= self.sec_0
         self.rho_0v /= self.sec_0
         self.rho_0d /= self.sec_0
         self.rho_dv /= self.sec_0
@@ -805,9 +828,8 @@ class SolarBrdfEq3(SolarBrdfBase):
 
 class SolarBrdfEq4(SolarBrdfBase):
     description = "Solar BRDF Form 4"
-    def __init__(self, *args):
+    def __init__(self, *args, **kwargs):
         super().__init__(self, *args, **kwargs)
-        self.alb /= self.sec_0
         self.rho_0v /= self.sec_0
         self.rho_0d /= self.sec_0
         self.rho_dv /= self.sec_0

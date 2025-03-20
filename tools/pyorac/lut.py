@@ -18,9 +18,7 @@ stack_orac_chan_file
 read_orac_text_lut
     Fetches the contents of an ORAC SAD LUT file
 stack_orac_text_lut
-    Fetches SAD LUT data for a set of channels for files with 1 table
-stack_orac_text_lut_pair
-    Fetches SAD LUT data for a set of channels for files with 2 tables
+    Fetches SAD LUT data for a set of channels
 
 Notes:
 - There is no check that all text LUTs have the same axes, because
@@ -188,14 +186,57 @@ class OracLutBase(ABC):
         """Returns the mesh of grid points for the outputs of state_space"""
 
     @abstractmethod
-    def uncertainty(self, pixel):
+    def uncertainty(self, pixel, *args, **kwargs):
         """Calculates the ORAC uncertainty model for a given pixel
 
         Arguments and keywords will vary with table type as they use
         different calculations. See specific documentation."""
 
+    # Parameters of Planck function linearisation for R2T/T2R
+    b1 = None
+    b2 = None
+    t1 = None
+    t2 = None
+    # Solar constant mean and annual cycle magnitude
+    f0 = None
+    f1 = None
+    # Descriptions of the spacing of LUT axes
+    satellite_zenith_spacing = ""
+    solar_zenith_spacing = ""
+    relative_azimuth_spacing = ""
+    optical_depth_spacing = ""
+    effective_radius_spacing = ""
+    # LUT axes
+    channels = None
+    solar = None
+    thermal = None
+    # LUT terms
+    t_00 = None
+    t_0d = None
+    t_dv = None
+    t_dd = None
+    r_0v = None
+    r_0d = None
+    r_dv = None
+    r_dd = None
+    e_md = None
+    ext = None
+    ext_ratio = None
 
 class OracTextLut(OracLutBase):
+    name = ""
+    description = ""
+    file_id = []
+    wavenumber = []
+    ir_nehomog = None
+    ir_necoreg = None
+    nebt = None
+    f01 = None
+    vis_nehomog = None
+    vis_necoreg = None
+    nedr = None
+    rs = None
+
     def __init__(self, filename, method='cubic', check_consistency=False):
         """
         Args:
@@ -237,7 +278,7 @@ class OracTextLut(OracLutBase):
         parts = os.path.basename(root).split("_")
         self.sensor = parts[0]
         ch_filename = os.path.join(fdr, self.sensor+"_"+parts[-1])
-        regex = re.compile("(Ch[0-9ab]+)\.sad")
+        regex = re.compile(r"(Ch[0-9ab]+)\.sad")
         lut_files = []
         channels = []
         for a_file in iglob(self.filename):
@@ -251,7 +292,7 @@ class OracTextLut(OracLutBase):
         properties = dict(channels=channels)
         for lut_file in lut_files:
             chan = read_orac_chan_file(lut_file)
-            if self.check and chan_properties["name"] != os.path.basename(lut_file):
+            if self.check and properties["name"] != os.path.basename(lut_file):
                 raise ValueError("Inconsistent LUT: "+lut_file)
 
             # Flatten structure
@@ -287,13 +328,7 @@ class OracTextLut(OracLutBase):
         self.__dict__.update(properties)
         self.nch = len(self.channels)
 
-        if not np.any(self.thermal):
-            self.b1 = None
-            self.b2 = None
-            self.t1 = None
-            self.t2 = None
-
-    def _stack_orac_text_lut(self, code):
+    def _stack_orac_text_lut(self, code, pair=False):
         """Open a set of channels from ORAC text look-up tables"""
 
         shape = None
@@ -307,6 +342,9 @@ class OracTextLut(OracLutBase):
             if shape is None:
                 shape = np.insert(naxes, 0, self.nch)
                 result = np.empty(shape)
+                if pair:
+                    shape2 = np.insert(naxes[::2], 0, self.nch)
+                    result2 = np.empty(shape2)
                 base_axes = axes
             elif self.check:
                 for ax0, ax1 in zip(base_axes, axes):
@@ -314,6 +352,8 @@ class OracTextLut(OracLutBase):
                         raise ValueError("Inconsistent LUT: "+lut_file)
 
             result[i] = tables[0]
+            if pair:
+                result2[i] = tables[1]
 
         # Inspect axes spacing
         spacing = []
@@ -325,47 +365,14 @@ class OracTextLut(OracLutBase):
             label += "logarithmic" if np.any(ax < 0.) else "linear"
             spacing.append(label)
 
+        if pair:
+            return (result, result2), axes, spacing
         return result, axes, spacing
-
-    def _stack_orac_text_lut_pair(self, code):
-        """Open a pair of ORAC tables for a set of channels"""
-
-        shape0 = None
-        for i, label in enumerate(self.file_id):
-            lut_file = self.filename.replace("RD", code).replace("Ch*", label)
-
-            try:
-                tables, axes, naxes, _ = read_orac_text_lut(lut_file)
-            except FileNotFoundError:
-                continue
-            if shape0 is None:
-                shape0 = np.insert(naxes, 0, self.nch)
-                result0 = np.empty(shape0)
-                shape1 = np.insert(naxes[::2], 0, self.nch)
-                result1 = np.empty(shape1)
-                base_axes = axes
-            elif self.check:
-                for ax0, ax1 in zip(base_axes, axes):
-                    if not np.allclose(ax0, ax1):
-                        raise ValueError("Inconsistent LUT: "+lut_file)
-
-            result0[i] = tables[0]
-            result1[i] = tables[1]
-
-        # Inspect axes spacing
-        spacing = []
-        for ax in axes:
-            spaces = np.unique(np.diff(ax))
-            label = "uneven_" if spaces.size > 1 else ""
-            label += "logarithmic" if np.any(ax < 0.) else "linear"
-            spacing.append(label)
-
-        return result0, result1, axes, spacing
 
     def _open_text_tables(self, method):
         """Open set of ORAC text look-up tables"""
 
-        rd, rfd, axes, spacing = self._stack_orac_text_lut_pair("RD")
+        (rd, rfd), axes, spacing = self._stack_orac_text_lut("RD", pair=True)
         self.r_dv = RearrangedRegularGridInterpolator(
             [self.channels] + axes, rd, method, (3, 2, 0, 1)
         )
@@ -376,7 +383,7 @@ class OracTextLut(OracLutBase):
         self.satellite_zenith_spacing = spacing[1]
         self.optical_depth_spacing = spacing[2]
 
-        td, tfd, axes, _ = self._stack_orac_text_lut_pair("TD")
+        (td, tfd), axes, _ = self._stack_orac_text_lut("TD", pair=True)
         self.t_dv = RearrangedRegularGridInterpolator(
             [self.channels] + axes, td, method, (3, 2, 0, 1)
         )
@@ -396,7 +403,7 @@ class OracTextLut(OracLutBase):
 
         if np.any(self.solar):
             # Have to invert the relative azimuth axis
-            rbd, rfbd, axes, spacing = self._stack_orac_text_lut_pair("RBD")
+            (rbd, rfbd), axes, spacing = self._stack_orac_text_lut("RBD", pair=True)
             axes[1] = 180. - axes[1]
             self.r_0v = RearrangedRegularGridInterpolator(
                 [self.channels] + axes, rbd, method, (5, 4, 0, 2, 1, 3)
@@ -412,7 +419,7 @@ class OracTextLut(OracLutBase):
                 [self.channels] + axes, tb, method, (3, 2, 0, 1)
             )
 
-            tbd, tfbd, axes, _ = self._stack_orac_text_lut_pair("TBD")
+            (tbd, tfbd), axes, _ = self._stack_orac_text_lut("TBD", pair=True)
             axes[1] = 180. - axes[1]
             self.t_0d = RearrangedRegularGridInterpolator(
                 [self.channels, axes[0], axes[2], axes[4]], tfbd, method, (3, 2, 0, 1)
@@ -572,7 +579,6 @@ class OracNcdfLut(OracLutBase):
         """
         super(OracNcdfLut, self).__init__(filename, check_consistency)
 
-        self.file_id = None
         with Dataset(self.filename) as lut_file:
             # Identify requested channel subset
             self.channels = lut_file["channel_id"][...]
@@ -824,35 +830,25 @@ class OracNcdfLut(OracLutBase):
                 fac = np.cos(np.radians(pixel.solzen[ch["index"]])) * sol_const[j] / np.pi
                 if self.snr is not None:
                     # Combine SNR and counting error
-                    dLx2 = (ch["meas"] * fac / self.snr[j])**2 + gain[j]**2 / 6.
+                    dlx2 = (ch["meas"] * fac / self.snr[j])**2 + gain[j]**2 / 6.
                 else:
                     # Polynomial error model
-                    dLx2 = 0.
+                    dlx2 = 0.
                     for term in self.ru2:
-                        dLx2 *= ch["meas"] * fac
-                        dLx2 += term[j]
-                sy = dLx2 / fac**2
+                        dlx2 *= ch["meas"] * fac
+                        dlx2 += term[j]
+                sy = dlx2 / fac**2
 
-            # Homog uncertainty
+            # Homog and coreg uncertainty
             if ch["thermal"] and (alwaysthermal or ch["solar"] or not day):
-                sy += thermal_nehomog**2
+                sy += thermal_nehomog**2 + thermal_necoreg**2
             if ch["solar"] and day:
                 if ch["thermal"]:
                     # _, dr_dtm = self.temp2rad(ch["meas"])
                     radiance = sol_const[j] / dr_dtm[k]
                 else:
                     radiance = ch["meas"]
-                sy += (solar_nehomog * radiance)**2
-            # Coreg uncertainy
-            if ch["thermal"] and (alwaysthermal or ch["solar"] or not day):
-                sy += thermal_necoreg**2
-            if ch["solar"] and day:
-                if ch["thermal"]:
-                    # _, dr_dtm = self.temp2rad(ch["meas"])
-                    radiance = sol_const[j] / dr_dtm[k]
-                else:
-                    radiance = ch["meas"]
-                sy += (solar_necoreg * radiance)**2
+                sy += (solar_nehomog**2 + solar_necoreg**2) * radiance**2
             out.append(sy)
 
         return np.array(out)
@@ -946,7 +942,8 @@ def read_orac_text_lut(filename):
                 parts = line.split()
                 if i == 0 and len(parts) == 1:
                     # First line (which BextRat files don't have)
-                    wvl = float(line)
+                    # wvl = float(line)
+                    pass
                 elif len(parts) == 2:
                     # Axis definition
                     naxes.append(int(parts[0]))
