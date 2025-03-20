@@ -492,7 +492,7 @@ USE_BAYESIAN_SELECTION={bayesian}""".format(
 def _bound_time(date=None, delta_hours=6):
     """Return timestamps divisible by some duration that bound a given time
 
-    http://stackoverflow.com/questions/3463930/how-to-round-the-minute-of-a-datetime-object-python/10854034
+    https://stackoverflow.com/questions/3463930/how-to-round-the-minute-of-a-datetime-object-python/10854034
 
     Args:
     :datetime dt: Initial time.

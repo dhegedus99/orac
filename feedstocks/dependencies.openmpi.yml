@@ -28,7 +28,7 @@ dependencies:
  - scipy
  - netcdf4
  - h5py
- - cf-units
+ - cftime
  - opencv
  - matplotlib
  - cartopy

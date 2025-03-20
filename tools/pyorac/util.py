@@ -1,4 +1,5 @@
 """Utility functions for working with ORAC scripts and outputs."""
+import numpy as np
 import os
 import re
 from pyorac import defaults
@@ -6,9 +7,8 @@ from pyorac import defaults
 
 def bound_grid(grid, point, wrap=None):
     """Determine distance point is between grid cells, possibly with wrapping"""
-    from numpy import digitize
 
-    right = digitize(point, grid)
+    right = np.digitize(point, grid)
     if wrap and right == 0:
         left = grid.size-1
         return left, right, (grid[right] - point) / (grid[right] - grid[left] + wrap)
@@ -192,7 +192,7 @@ def call_exe(args, exe, driver, values=None):
             # Parse job ID # and return it to the caller
             jid = defaults.BATCH.parse_out(out, 'ID')
             return jid
-        except CalledProcessError as err:
+        except CalledProcessError:
             raise OracError('Failed to queue job ' + exe)
         except SyntaxError as err:
             raise OracError(str(err))
@@ -225,10 +225,9 @@ def compare_nc_atts(dat0, dat1, filename, var):
 
 def compare_orac_out(file0, file1):
     """Compare two NCDF files"""
-    import numpy as np
     from warnings import warn
     from pyorac.definitions import (Acceptable, FieldMissing, InconsistentDim,
-                                    OracWarning, Regression, RoundingError)
+                                    OracWarning, RoundingError)
 
     try:
         from netCDF4 import Dataset
@@ -363,7 +362,7 @@ def read_orac_library_file(filename):
 
         def parse_with_dict(dictionary):
             """Function called by re.sub to replace variables with their values
-            http://stackoverflow.com/questions/7868554/python-re-subs-replace-
+            https://stackoverflow.com/questions/7868554/python-re-subs-replace-
             function-doesnt-accept-extra-arguments-how-to-avoid"""
 
             def replace_var(matchobj):

@@ -1,7 +1,7 @@
 """ORAC Forward Model
 
 An attempt to replicate the calculations of the ORAC forward model
-within Python code. Arguably, this should be an f2py interface that
+within Python code. Arguably, this should be a f2py interface that
 calls the actual library routines. Instead, it's a sloppy copy of the
 essence of the code. That could have some use for code testing and
 validation, particularly if we strap in more accurate methods or inputs.
@@ -12,7 +12,7 @@ PreprocessorFiles
     A simple container for the preprocessor files that allows dict-like
     key referencing for variables without specifying a file suffix.
 Spixel
-    Container for all of the inputs required by ORAC including
+    Container for all the inputs required by ORAC including
     atmospheric profiles, a priori surface profiles, viewing geometry,
     measured radiances, and RTTOV outputs.
 OracForwardModel
@@ -311,8 +311,8 @@ class SPixel(object):
     def correct_temperature(self, max_tropopause=500., min_tropopause=30., depth=2):
         """Implementation of src/int_ctp.F90
 
-        There is certainly a more Pythonic way of doing this and I
-        am in no mood to find it.
+        There is certainly a more Pythonic way of doing this;
+        I am in no mood to find it.
         """
         temp = self.temperature.copy()
 
@@ -355,7 +355,7 @@ class SPixel(object):
         while self.pressure[k] > min_tropopause and k > 0:
             # Find the lowest level with a lapse rate less than 2 K/km
             if ((temp[k] - temp[k-1]) / (height[k-1] - height[k])) < 2.:
-                # Find first level a least 2 km above that
+                # Find first level at least 2 km above that
                 l = k-1
                 while height[l] - height[k] < 2. and l > 0:
                     l -= 1
@@ -475,7 +475,7 @@ class OracForwardModel(ABC):
     e_md = None
 
     def __init__(self, spixel, lut, **kwargs):
-        """Setup all of the terms; unspecified state variables are given prior from LUT"""
+        """Setup all the terms; unspecified state variables are given prior from LUT"""
         self.pixel = spixel
         self.nch = self.pixel.channels.size
 

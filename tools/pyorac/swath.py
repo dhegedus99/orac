@@ -1,4 +1,4 @@
-"""swath.py) Various routines for reading and using ORAC output data
+"""swath.py: Various routines for reading and using ORAC output data
 # 10 Feb 2017, ACP: First version
 # 17 Feb 2017, ACP: Adjusted Position.closest() to estimate the coords first.
 # 24 Feb 2017, ACP: Completely different Position.closest(). It's still rubbish,
@@ -200,7 +200,7 @@ class Swath(Mappable):
         Args:
         filename: Path to open.
         central_longitude: Centre of projection used to extrapolate the lat-lon
-            grid. Ideally outside of the swath. Default 0.
+            grid. Ideally outside the swath. Default 0.
         quick_open: When True, the initialisation only opens the ORAC files, with
             no reading. Many class methods will not function until _init1() is
             called as the lat-lon coords are not defined.
@@ -273,7 +273,7 @@ class Swath(Mappable):
         try:
             self._open_file(filename, label)
             return
-        except OSError as err:
+        except OSError:
             pass
         try:
             self._open_file(filename, label + ".gz")
@@ -500,7 +500,7 @@ class Swath(Mappable):
         """Cloud droplet number density for a semi-adiabatic cloud
 
         Kwds:
-        how) Equation to use. Options are,
+        how: Equation to use. Options are,
             quaas: Use the constant relationship of Quaas 2006
             gry: Use the temperature-dependent eqn of Gryspeerdt 2016
             acp: Use the temp and pressure-dependent eqn of ACPovey
@@ -955,7 +955,7 @@ def _cdnc_quaas(tau, r_e):
     return 1.37e-5 * np.sqrt(tau / r_e**5)
 
 
-def _cdnc_gryspeerdt(tau, r_e, T):
+def _cdnc_gryspeerdt(tau, r_e, t):
     """Cloud droplet number density for a semi-adiabatic cloud
 
     Uses Eq. 2 of doi:10.1002/2015JD023744
@@ -965,12 +965,12 @@ def _cdnc_gryspeerdt(tau, r_e, T):
     r_e: Cloud effective radius, in m.
     T: Representative temperature of cloud, in K.
     """
-    return 1.37e-5 * (0.0192 * T - 4.293) * np.sqrt(tau / r_e**5)
+    return 1.37e-5 * (0.0192 * t - 4.293) * np.sqrt(tau / r_e**5)
 
 
-def _cdnc_acp(tau, r_e, T, p,
-              es_A=610.94, es_B=17.625, es_C=243.04, es_PA=1.00071, es_PB=4.5e-8,
-              L0=2.501e6, L1=1.86e3, k=0.692, Q_ext=2., f_ab=0.66):
+def _cdnc_acp(tau, r_e, t, p,
+              es_a=610.94, es_b=17.625, es_c=243.04, es_pa=1.00071, es_pb=4.5e-8,
+              l0=2.501e6, l1=1.86e3, k=0.692, q_ext=2., f_ab=0.66):
     """Cloud droplet number density for a semi-adiabatic cloud
 
     Uses A.C. Povey's derivation for variable lapse rate and including the
@@ -1001,28 +1001,28 @@ def _cdnc_acp(tau, r_e, T, p,
     """
     # Fundamental constants
     epsilon = 0.622
-    R = 8.314
-    M_a = 28.96e-3
+    r = 8.314
+    m_a = 28.96e-3
     g = 9.807
     c_p = 1.004e3
     rho_w = 997.
-    R_a = R / M_a
+    r_a = r / m_a
 
-    celsius = T - 273.15
+    celsius = t - 273.15
     # Specific latent heat of vaporisation
-    L = L0 + L1 * celsius
+    l = l0 + l1 * celsius
     # Magnus equation for saturated vapour pressure
-    e_s = es_A * np.exp(es_B * celsius / (celsius + es_C))
+    e_s = es_a * np.exp(es_b * celsius / (celsius + es_c))
     # Correction from vapour to moist air
-    e_s *= es_PA * np.exp(es_PB * p)
+    e_s *= es_pa * np.exp(es_pb * p)
     # Partial pressure of dry air
     p_res = p - e_s
 
     alpha_fac = 5. * f_ab * g * epsilon
-    alpha_fac /= 4. * (np.pi * k)**2 * Q_ext * rho_w * R_a
+    alpha_fac /= 4. * (np.pi * k)**2 * q_ext * rho_w * r_a
 
-    denom0 = epsilon * L * p - c_p * p_res * T
-    denom1 = R_a * c_p * (p_res * T)**2 + (epsilon * L)**2 * e_s * p
-    alpha = alpha_fac * e_s * p_res * denom0 / (T * denom1)
+    denom0 = epsilon * l * p - c_p * p_res * t
+    denom1 = r_a * c_p * (p_res * t)**2 + (epsilon * l)**2 * e_s * p
+    alpha = alpha_fac * e_s * p_res * denom0 / (t * denom1)
 
     return np.sqrt(alpha * tau / r_e**5)
