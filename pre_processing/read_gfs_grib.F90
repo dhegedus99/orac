@@ -73,8 +73,10 @@ subroutine read_gfs_grib(ecmwf_file,preproc_dims,preproc_geoloc, &
    type(preproc_prtm_t),       intent(inout) :: preproc_prtm
    logical,                    intent(in)    :: verbose
 
+#ifdef INCLUDE_EMOS
    integer(lint), parameter                 :: BUFFER = 3000000
    integer(lint), external                  :: INTIN,INTOUT,INTF2
+#endif
    integer(lint)                            :: fu,stat,nbytes
    integer(lint)                            :: out_bytes, out_words
    integer(lint), allocatable, dimension(:) :: in_data,out_data
@@ -93,6 +95,7 @@ subroutine read_gfs_grib(ecmwf_file,preproc_dims,preproc_geoloc, &
    integer(lint),dimension(31)              :: gfs_levlist
 
 
+#ifdef INCLUDE_EMOS
    gfs_levlist = (/1,2,3,5,7,10,20,30,50,70,100,150,200,250,300,350, &
                    400,450,500,550,600,650,700,750,800,850,900,925,950,975,1000/)
 
@@ -313,6 +316,10 @@ subroutine read_gfs_grib(ecmwf_file,preproc_dims,preproc_geoloc, &
 
    ! Refactor all the GFS levels so that below-surface contributions are removed.
    call sort_gfs_levels(preproc_prtm,verbose)
+#else
+   write(*,*) 'ERROR: read_gfs_grib(): LIBEMOS is required for ' // &
+        'use_ecmwf_preproc_grid = .false.'
+#endif
 
 end subroutine read_gfs_grib
 

@@ -53,9 +53,6 @@ subroutine read_era5_jasmin_nc(nwp_fnames, idx, ecmwf, preproc_dims, preproc_geo
    integer,                    intent(in)    :: nwp_flag
    integer,                    intent(in)    :: date, ind
 
-   integer(lint), external  :: INTIN, INTOUT, INTF
-   integer(lint), parameter :: BUFFER = 2000000
-
    real(sreal)   :: dummy2d(ecmwf%xdim,ecmwf%ydim)
    real(sreal)   :: dummy3d_2(ecmwf%xdim,ecmwf%ydim,ecmwf%kdim)
 
@@ -272,8 +269,10 @@ subroutine preproc_3d_var(dummy_in, ecmwf, preproc_dims, preproc_geoloc, out_arr
    real(sreal), pointer,          intent(inout) :: out_arr3d(:,:, :)
 
    integer(lint),     dimension(1)        :: intv, old_grib, new_grib
+#ifdef INCLUDE_EMOS
    integer(lint),     external            :: INTIN, INTOUT, INTF
    integer(lint),     parameter           :: BUFFER = 2000000
+#endif
    character(len=20), dimension(1)        :: charv
    real(dreal)                            :: grid(2), area(4)
    real(dreal), allocatable, dimension(:) :: old_data, new_data
@@ -281,6 +280,7 @@ subroutine preproc_3d_var(dummy_in, ecmwf, preproc_dims, preproc_geoloc, out_arr
    integer(4)                             :: n, ni, nj, i, j, k
    integer(4)                             :: old_len, new_len
 
+#ifdef INCLUDE_EMOS
    n = ecmwf%xdim*ecmwf%ydim
 
    ! input details of new grid (see note in read_ecmwf_grib)
@@ -334,6 +334,10 @@ subroutine preproc_3d_var(dummy_in, ecmwf, preproc_dims, preproc_geoloc, out_arr
 
    deallocate(old_data)
    deallocate(new_data)
+#else
+   write(*,*) 'ERROR: preproc_3d_var(): LIBEMOS is required for ' // &
+        'use_ecmwf_preproc_grid = .false.'
+#endif
 
 end subroutine preproc_3d_var
 
@@ -350,8 +354,10 @@ subroutine preproc_2d_var(dummy_in, ecmwf, preproc_dims, preproc_geoloc, out_arr
    real(sreal), pointer,          intent(inout) :: out_arr2d(:,:)
 
    integer(lint),     dimension(1)        :: intv, old_grib, new_grib
+#ifdef INCLUDE_EMOS
    integer(lint),     external            :: INTIN, INTOUT, INTF
    integer(lint),     parameter           :: BUFFER = 2000000
+#endif
    character(len=20), dimension(1)        :: charv
    real(dreal)                            :: grid(2), area(4)
    real(dreal), allocatable, dimension(:) :: old_data, new_data
@@ -359,6 +365,7 @@ subroutine preproc_2d_var(dummy_in, ecmwf, preproc_dims, preproc_geoloc, out_arr
    integer(4)                             :: n, ni, nj, i, j
    integer(4)                             :: old_len, new_len
 
+#ifdef INCLUDE_EMOS
    n = ecmwf%xdim*ecmwf%ydim
 
    ! input details of new grid (see note in read_ecmwf_grib)
@@ -410,5 +417,9 @@ subroutine preproc_2d_var(dummy_in, ecmwf, preproc_dims, preproc_geoloc, out_arr
 
    deallocate(old_data)
    deallocate(new_data)
+#else
+   write(*,*) 'ERROR: preproc_2d_var(): LIBEMOS is required for ' // &
+        'use_ecmwf_preproc_grid = .false.'
+#endif
 
 end subroutine preproc_2d_var

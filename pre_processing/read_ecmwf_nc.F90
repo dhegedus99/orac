@@ -92,8 +92,10 @@ subroutine read_ecmwf_nc(nwp_path, ecmwf, preproc_dims, preproc_geoloc, &
    logical,                 intent(in)    :: verbose
    integer,                 intent(in)    :: nwp_flag
 
+#ifdef INCLUDE_EMOS
    integer(lint),     external            :: INTIN, INTOUT, INTF
    integer(lint),     parameter           :: BUFFER = 4000000
+#endif
 
    integer(lint),            dimension(1) :: intv, old_grib, new_grib
    real(dreal)                            :: grid(2), area(4)
@@ -118,7 +120,7 @@ subroutine read_ecmwf_nc(nwp_path, ecmwf, preproc_dims, preproc_geoloc, &
 #endif
 
 
-
+#ifdef INCLUDE_EMOS
    n = ecmwf%xdim*ecmwf%ydim
 
    ! input details of new grid (see note in read_ecmwf_grib)
@@ -313,6 +315,10 @@ subroutine read_ecmwf_nc(nwp_path, ecmwf, preproc_dims, preproc_geoloc, &
    deallocate(new_data)
 
    call ncdf_close(fid, 'read_ecmwf_nc()')
+#else
+   write(*,*) 'ERROR: read_ecmwf_nc(): LIBEMOS is required for ' // &
+        'use_ecmwf_preproc_grid = .false.'
+#endif
 
 end subroutine read_ecmwf_nc
 

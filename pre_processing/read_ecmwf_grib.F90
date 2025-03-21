@@ -82,8 +82,10 @@ subroutine read_ecmwf_grib(ecmwf_file, preproc_dims, preproc_geoloc, &
    type(preproc_prtm_t),   intent(inout) :: preproc_prtm
    logical,                intent(in)    :: verbose
 
+#ifdef INCLUDE_EMOS
    integer(lint), parameter                 :: BUFFER = 3000000
    integer(lint), external                  :: INTIN, INTOUT, INTF2
+#endif
    integer(lint)                            :: fu, stat, nbytes
 !  integer(lint)                            :: in_words, out_words
    integer(lint)                            :: out_bytes, out_words
@@ -98,6 +100,7 @@ subroutine read_ecmwf_grib(ecmwf_file, preproc_dims, preproc_geoloc, &
    real(sreal), dimension(:),   allocatable :: pl, val
    real(sreal), dimension(:,:), pointer     :: array
 
+#ifdef INCLUDE_EMOS
    ! open the ECMWF file
    call PBOPEN(fu, ecmwf_file, 'r', stat)
    if (stat .ne. 0) call h_e_e('grib', 'Failed to read file.')
@@ -264,5 +267,9 @@ subroutine read_ecmwf_grib(ecmwf_file, preproc_dims, preproc_geoloc, &
    ! close ECMWF file
    call PBCLOSE(fu, stat)
    if (stat .ne. 0) call h_e_e('grib', 'Failed to close file.')
+#else
+   write(*,*) 'ERROR: read_ecmwf_grib(): LIBEMOS is required for ' // &
+        'use_ecmwf_preproc_grid = .false.'
+#endif
 
 end subroutine read_ecmwf_grib

@@ -49,8 +49,10 @@ subroutine read_gfs_nc(nwp_path, ecmwf, preproc_dims, preproc_geoloc, &
    logical,                 intent(in)    :: verbose
    integer,                 intent(in)    :: nwp_flag
 
+#ifdef INCLUDE_EMOS
    integer(lint),     external            :: INTIN, INTOUT, INTF
    integer(lint),     parameter           :: BUFFER = 3000000
+#endif
 
    integer(lint),            dimension(1) :: intv, old_grib, new_grib
    real(dreal)                            :: grid(2), area(4)
@@ -68,6 +70,7 @@ subroutine read_gfs_nc(nwp_path, ecmwf, preproc_dims, preproc_geoloc, &
 
    integer(lint), dimension(31)           :: gfs_levlist
 
+#ifdef INCLUDE_EMOS
    gfs_levlist = (/1,2,3,5,7,10,20,30,50,70,100,150,200,250,300,350, &
                    400,450,500,550,600,650,700,750,800,850,900,925,950,975,1000/)
 
@@ -237,5 +240,9 @@ subroutine read_gfs_nc(nwp_path, ecmwf, preproc_dims, preproc_geoloc, &
    call sort_gfs_levels(preproc_prtm, verbose)
 
    call ncdf_close(fid, 'read_gfs_nc()')
+#else
+   write(*,*) 'ERROR: read_gfs_nc(): LIBEMOS is required for ' // &
+        'use_ecmwf_preproc_grid = .false.'
+#endif
 
 end subroutine read_gfs_nc
