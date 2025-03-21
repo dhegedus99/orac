@@ -320,7 +320,7 @@ end subroutine read_gfs_grib
 ! This function transforms the GFS fixed pressure levels into surface-relative
 ! levels that are more similar to those from ECMWF. Needed to prevent below-
 ! surface contributions to the transmission and radiances.
-subroutine sort_gfs_levels(preproc_prtm,verbose)
+subroutine sort_gfs_levels(preproc_prtm, verbose)
 
    use preproc_constants_m
    use preproc_structures_m
@@ -330,14 +330,14 @@ subroutine sort_gfs_levels(preproc_prtm,verbose)
    type(preproc_prtm_t), intent(inout) :: preproc_prtm
    logical,              intent(in)    :: verbose
 
-   integer          :: sh(3),lb(3),ub(3),i_0,i_1,j_0,j_1,nl
-   integer          :: i,j,l,stoplev
+   integer          :: sh(3), lb(3), ub(3), i_0, i_1, j_0, j_1, nl
+   integer          :: i, j, l, stoplev
 
-   real(dreal)      :: surfp,interp
-   real,allocatable :: p(:),t(:),q(:),o(:),pl(:)
+   real(dreal)      :: surfp, interp
+   real,allocatable :: p(:), t(:), q(:), o(:), pl(:)
    logical          :: stopper
 
-   if (verbose)write(*,*)">>>>>>Sort_gfs_levels>>>>>>"
+   if (verbose) write(*,*) ">>>>>>Sort_gfs_levels>>>>>>"
 
    ! Get the array bounds
    sh = shape(preproc_prtm%pressure)

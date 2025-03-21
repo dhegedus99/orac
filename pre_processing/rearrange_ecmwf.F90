@@ -110,16 +110,16 @@ subroutine rearrange_ecmwf_var2d(ecmwf, dummy2d, date, ind)
    implicit none
 
    type(ecmwf_t), intent(inout) :: ecmwf
-   real(sreal), intent(inout)   :: dummy2d(ecmwf%xdim,ecmwf%ydim)
-   real(sreal)                  :: dummy2d_new(ecmwf%xdim,ecmwf%ydim)
-   integer, intent(in)         :: date, ind
-   integer          :: i
+   real(sreal),   intent(inout) :: dummy2d(ecmwf%xdim,ecmwf%ydim)
+   integer,       intent(in)    :: date, ind
+   real(sreal) :: dummy2d_new(ecmwf%xdim,ecmwf%ydim)
+   integer     :: i
 
    dummy2d_new(1:ind,:) = dummy2d(date:,:)
    dummy2d_new(ind+1:,:)= dummy2d(1:date-1,:)
 
    do i = 1, ecmwf%ydim
-      dummy2d(:,ecmwf%ydim+1-i)     = dummy2d_new(:,i)
+      dummy2d(:,ecmwf%ydim+1-i) = dummy2d_new(:,i)
    end do
 
 end subroutine rearrange_ecmwf_var2d
@@ -138,7 +138,7 @@ subroutine rearrange_ecmwf_var3d(ecmwf, dummy3d, date, ind)
    dummy3d_new(ind+1:,:, :)= dummy3d(1:date-1,:, :)
 
    do i = 1, ecmwf%ydim
-      dummy3d(:,ecmwf%ydim+1-i, :)     = dummy3d_new(:,i, :)
+      dummy3d(:,ecmwf%ydim+1-i, :) = dummy3d_new(:,i, :)
    end do
 
 end subroutine rearrange_ecmwf_var3d

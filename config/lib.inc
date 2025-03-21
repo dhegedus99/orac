@@ -59,7 +59,7 @@ SEVIRI_UTIL_LIB = $(LIBBASE_FORTRAN)/seviri_util
 SEVIRI_UTIL_INCLUDE = $(LIBBASE_FORTRAN)/seviri_util
 
 # seviri_ml
-# run seviri_ml/get_py_config.sh to obtain your SEVIRI_ML_PYTHON_LIB 
+# run seviri_ml/get_py_config.sh to obtain your SEVIRI_ML_PYTHON_LIB
 # and SEVIRI_ML_PYTHON_INCLUDE
 SEVIRI_ML_LIB = $(LIBBASE_FORTRAN)/seviri_ml
 SEVIRI_ML_INCLUDE = $(LIBBASE_FORTRAN)/seviri_ml

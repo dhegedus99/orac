@@ -617,7 +617,7 @@ subroutine correct_for_ice_snow_nwp(nwp_path, imager_geolocation, &
 
    ! Local variables
    logical                        :: flag
-   integer(kind=4)                :: i, j,lon_i, lat_j
+   integer(kind=4)                :: i, j, lon_i, lat_j
    real(kind=sreal), dimension(:), allocatable :: tmp_albedo, tmp_snow, tmp_ice
    real(kind=sreal), dimension(4) :: snow_albedo, ice_albedo
    real(kind=sreal)               :: snow_threshold, ice_threshold
