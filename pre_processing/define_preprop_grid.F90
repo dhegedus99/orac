@@ -56,13 +56,13 @@ subroutine define_preprop_grid(imager_geolocation,preproc_dims,verbose)
         1:imager_geolocation%ny))
 
    ! determine which preproc grid points each pixel falls in (start at 1)
-   lat = (imager_geolocation%latitude + preproc_dims%lat_offset)* &
+   lat = (imager_geolocation%latitude + preproc_dims%lat_offset) * &
         preproc_dims%dellat + 1.
-   lon = (imager_geolocation%longitude + preproc_dims%lon_offset)* &
+   lon = (imager_geolocation%longitude + preproc_dims%lon_offset) * &
         preproc_dims%dellon + 1.
 
    ! only consider valid lat/lon values
-   mask =  imager_geolocation%latitude.ne.sreal_fill_value .and. &
+   mask = imager_geolocation%latitude.ne.sreal_fill_value .and. &
         imager_geolocation%longitude.ne.sreal_fill_value
 
    ! take one more pixel than is required for interpolation
@@ -85,9 +85,9 @@ subroutine define_preprop_grid(imager_geolocation,preproc_dims,verbose)
    preproc_dims%ydim = preproc_dims%max_lat - preproc_dims%min_lat + 1
 
    if (verbose) then
-      write(*,*) 'preproc_dims: ',preproc_dims%xdim, &
-           preproc_dims%ydim,preproc_dims%kdim
-      write(*,*) 'dellon, dellat: ',preproc_dims%dellon,preproc_dims%dellat
+      print*, 'preproc_dims: ', preproc_dims%xdim, &
+           preproc_dims%ydim, preproc_dims%kdim
+      print*, 'dellon, dellat: ',preproc_dims%dellon, preproc_dims%dellat
       print*, 'preproc_dims%min_lat: ', preproc_dims%min_lat
       print*, 'preproc_dims%max_lat: ', preproc_dims%max_lat
       print*, 'preproc_dims%min_lon: ', preproc_dims%min_lon
@@ -115,7 +115,7 @@ end subroutine define_preprop_grid
 ! imager_geolocation  both Summary of pixel positions
 !              struct
 ! preproc_dims struct Out  Structure summarising dimensions of preprocessing.
-! ecmwf      struct  Both   Summary of contents of ECMWF files
+! ecmwf        struct Both Summary of contents of ECMWF files
 ! verbose      logic  In   F: minimise information printed to screen; T: don't
 !
 ! History:
@@ -134,8 +134,8 @@ subroutine define_preproc_grid_ecmwf(imager_geolocation, preproc_dims, ecmwf, ve
 
    implicit none
 
-   type(ecmwf_t),           intent(in)    :: ecmwf
-   type(preproc_dims_t),    intent(inout) :: preproc_dims
+   type(ecmwf_t),              intent(in)    :: ecmwf
+   type(preproc_dims_t),       intent(inout) :: preproc_dims
    type(imager_geolocation_t), intent(in)    :: imager_geolocation
    logical,                    intent(in)    :: verbose
 
@@ -146,33 +146,30 @@ subroutine define_preproc_grid_ecmwf(imager_geolocation, preproc_dims, ecmwf, ve
    max_lon_ind = minloc(abs(ecmwf%lon - maxval(imager_geolocation%longitude)),1)
    min_lat_ind = minloc(abs(ecmwf%lat - minval(merge(imager_geolocation%latitude, HUGE(0.0), imager_geolocation%latitude /= -999))),1)
    max_lat_ind = minloc(abs(ecmwf%lat - maxval(imager_geolocation%latitude)),1)
-      
-      
 
    ! use ecmwf grid for preproc grid
    preproc_dims%kdim = ecmwf%kdim
-   preproc_dims%xdim = max_lon_ind - min_lon_ind +1
-   preproc_dims%ydim = max_lat_ind - min_lat_ind +1
+   preproc_dims%xdim = max_lon_ind - min_lon_ind + 1
+   preproc_dims%ydim = max_lat_ind - min_lat_ind + 1
    preproc_dims%min_lat = ecmwf%lat(min_lat_ind)
-   preproc_dims%min_lat_ind=min_lat_ind
+   preproc_dims%min_lat_ind = min_lat_ind
    preproc_dims%max_lat = ecmwf%lat(max_lat_ind)
-   preproc_dims%max_lat_ind=max_lat_ind
+   preproc_dims%max_lat_ind = max_lat_ind
    preproc_dims%min_lon = ecmwf%lon(min_lon_ind)
-   preproc_dims%min_lon_ind=min_lon_ind
+   preproc_dims%min_lon_ind = min_lon_ind
    preproc_dims%max_lon = ecmwf%lon(max_lon_ind)
-   preproc_dims%max_lon_ind=max_lon_ind
-   preproc_dims%dellat=(preproc_dims%ydim-1)/(preproc_dims%max_lat-preproc_dims%min_lat)
-   preproc_dims%dellon=(preproc_dims%xdim-1)/(preproc_dims%max_lon-preproc_dims%min_lon)
+   preproc_dims%max_lon_ind = max_lon_ind
+   preproc_dims%dellat = (preproc_dims%ydim - 1) / (preproc_dims%max_lat - preproc_dims%min_lat)
+   preproc_dims%dellon = (preproc_dims%xdim - 1) / (preproc_dims%max_lon - preproc_dims%min_lon)
 
    if (verbose) then
-      write(*,*) 'preproc_dims: ',preproc_dims%xdim, &
-           preproc_dims%ydim,preproc_dims%kdim
-      write(*,*) 'dellon, dellat: ',preproc_dims%dellon,preproc_dims%dellat
+      print*, 'preproc_dims: ', preproc_dims%xdim, &
+           preproc_dims%ydim, preproc_dims%kdim
+      print*, 'dellon, dellat: ', preproc_dims%dellon, preproc_dims%dellat
       print*, 'preproc_dims%min_lat: ', preproc_dims%min_lat
       print*, 'preproc_dims%max_lat: ', preproc_dims%max_lat
       print*, 'preproc_dims%min_lon: ', preproc_dims%min_lon
       print*, 'preproc_dims%max_lon: ', preproc_dims%max_lon
    end if
-
 
 end subroutine define_preproc_grid_ecmwf

@@ -84,8 +84,7 @@
 !    should only be used for packed floating point data.
 ! 2018/06/08, SP: Add satellite azimuth angle to output.
 ! 2024/03/13, GT: Updated cldtype to include dust values and removed
-!                 scale_factor and add_offset from the various cloud mask/type
-!                 variables
+!    scale_factor and add_offset from the various cloud mask/type variables
 !
 ! Bugs:
 ! None known.

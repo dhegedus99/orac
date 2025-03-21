@@ -51,8 +51,8 @@ subroutine get_trop_tp(preproc_prtm, preproc_dims)
    nz = preproc_dims%kdim
 
 
-   do x = 1,  preproc_dims%xdim
-      do y = 1,  preproc_dims%ydim
+   do x = 1, preproc_dims%xdim
+      do y = 1, preproc_dims%ydim
 
          k = nz
          t = preproc_prtm%temperature(x,y,:)

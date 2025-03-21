@@ -78,8 +78,8 @@
 !-------------------------------------------------------------------------------
 
 subroutine get_surface_emissivity(cyear, cdoy, cimss_emis_path, imager_flags, &
-           imager_geolocation, channel_info, preproc_dims, preproc_geoloc, &
-           assume_full_path, verbose, surface, preproc_surf, source_atts)
+     imager_geolocation, channel_info, preproc_dims, preproc_geoloc, &
+     assume_full_path, verbose, surface, preproc_surf, source_atts)
 
    use channel_structures_m
    use cimss_emissivity_m
@@ -178,10 +178,10 @@ subroutine get_surface_emissivity(cyear, cdoy, cimss_emis_path, imager_flags, &
 
    ! Read the data itself
    if (read_cimss_emissivity(cimss_emis_path_file, emis, &
-       channel_info%channel_wl_abs(ch_total_index), verbose) .ne. 0) then
-        write(*,*) 'ERROR: read_cimss_emissivity(), problem reading CIMSS ' // &
-                   'emissivity file: ', cimss_emis_path_file
-        stop error_stop_code
+        channel_info%channel_wl_abs(ch_total_index), verbose) .ne. 0) then
+      write(*,*) 'ERROR: read_cimss_emissivity(), problem reading CIMSS ' // &
+           'emissivity file: ', cimss_emis_path_file
+      stop error_stop_code
    end if
 
    ! This emissivity data has very few missing values, but there are some. Set
@@ -206,17 +206,15 @@ subroutine get_surface_emissivity(cyear, cdoy, cimss_emis_path, imager_flags, &
                  imager_geolocation%latitude(i,j), interp)
             do k = 1, n_chans
                call interp_field(transemis(:,:,k), &
-                   surface%emissivity(i,j,ch_lw_index(k)), interp)
+                    surface%emissivity(i,j,ch_lw_index(k)), interp)
             end do
          end if
       end do
    end do
 
    ! calculate the mean emissivity in each preproc grid
-   allocate(counter(1:preproc_dims%xdim, &
-        1:preproc_dims%ydim))
-   allocate(summat(1:preproc_dims%xdim, &
-        1:preproc_dims%ydim, n_chans))
+   allocate(counter(1:preproc_dims%xdim, 1:preproc_dims%ydim))
+   allocate(summat(1:preproc_dims%xdim, 1:preproc_dims%ydim, n_chans))
 
    counter = 0
    summat  = 0.
@@ -229,7 +227,7 @@ subroutine get_surface_emissivity(cyear, cdoy, cimss_emis_path, imager_flags, &
                  (emis%lon0+(i-1)*emis%lon_del).le.maxval(preproc_geoloc%longitude)) then
                lon = minloc(abs(preproc_geoloc%longitude - (emis%lon0+(i-1)*emis%lon_del)),1)
                summat(lon,lat,:) = summat(lon,lat,:)+transemis(i,j,:)
-               counter(lon,lat)  = counter(lon,lat)+1 
+               counter(lon,lat)  = counter(lon,lat)+1
             end if
          end do
       end if
@@ -239,7 +237,7 @@ subroutine get_surface_emissivity(cyear, cdoy, cimss_emis_path, imager_flags, &
       do i = 1, preproc_dims%xdim
          if (counter(i,j) .gt. 0) then
             preproc_surf%emissivity(i,j,ch_lw_index) = summat(i,j,:) / &
-               real(counter(i,j))
+                 real(counter(i,j))
          end if
       end do
    end do
@@ -261,8 +259,8 @@ end subroutine get_surface_emissivity
 !-------------------------------------------------------------------------------
 
 subroutine get_camel_emissivity(cyear, cmonth, camel_emis_path, imager_flags, &
-           imager_geolocation, channel_info, preproc_dims, preproc_geoloc, &
-           assume_full_path, verbose, surface, preproc_surf, source_atts)
+     imager_geolocation, channel_info, preproc_dims, preproc_geoloc, &
+     assume_full_path, verbose, surface, preproc_surf, source_atts)
 
    use channel_structures_m
    use camel_emissivity_m
@@ -361,10 +359,10 @@ subroutine get_camel_emissivity(cyear, cmonth, camel_emis_path, imager_flags, &
 
    ! Read the data itself
    if (read_camel_emissivity(camel_emis_path_file, emis, &
-       channel_info%channel_wl_abs(ch_total_index), verbose) .ne. 0) then
-        write(*,*) 'ERROR: read_camel_emissivity(), problem reading camel ' // &
-                   'emissivity file: ', camel_emis_path_file
-        stop error_stop_code
+        channel_info%channel_wl_abs(ch_total_index), verbose) .ne. 0) then
+      write(*,*) 'ERROR: read_camel_emissivity(), problem reading camel ' // &
+           'emissivity file: ', camel_emis_path_file
+      stop error_stop_code
    end if
 
    ! This emissivity data has very few missing values, but there are some. Set
@@ -385,17 +383,15 @@ subroutine get_camel_emissivity(cyear, cmonth, camel_emis_path, imager_flags, &
                  imager_geolocation%latitude(i,j), interp)
             do k = 1, n_chans
                call interp_field(emis%emissivity(:,:,k), &
-                   surface%emissivity(i,j,ch_lw_index(k)), interp)
+                    surface%emissivity(i,j,ch_lw_index(k)), interp)
             end do
          end if
       end do
    end do
 
    ! calculate the mean emissivity in each preproc grid
-   allocate(counter(1:preproc_dims%xdim, &
-        1:preproc_dims%ydim))
-   allocate(summat(1:preproc_dims%xdim, &
-        1:preproc_dims%ydim, n_chans))
+   allocate(counter(1:preproc_dims%xdim, 1:preproc_dims%ydim))
+   allocate(summat(1:preproc_dims%xdim, 1:preproc_dims%ydim, n_chans))
 
    counter = 0
    summat  = 0.
@@ -418,7 +414,7 @@ subroutine get_camel_emissivity(cyear, cmonth, camel_emis_path, imager_flags, &
       do i = 1, preproc_dims%xdim
          if (counter(i,j) .gt. 0) then
             preproc_surf%emissivity(i,j,ch_lw_index) = summat(i,j,:) / &
-               real(counter(i,j))
+                 real(counter(i,j))
          end if
       end do
    end do

@@ -660,7 +660,7 @@ subroutine correct_for_ice_snow_nwp(nwp_path, imager_geolocation, &
          if (imager_geolocation%latitude(i,j) .gt. maxval(preproc_geoloc%latitude)) lat_j = preproc_dims%ydim
 
          tmp_albedo = surface%albedo(i,j,:)
-         
+
          if ( &
               ((preproc_prtm%snow_depth(lon_i,lat_j)    .gt. snow_threshold) .and. &
                (imager_flags%lsflag(i,j)         .eq. 1_byte)) .or. &

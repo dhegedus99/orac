@@ -55,17 +55,17 @@ subroutine build_preproc_fields(preproc_dims, preproc_geoloc, preproc_geo, &
    type(preproc_geo_t),        intent(inout) :: preproc_geo
    type(imager_geolocation_t), intent(inout) :: imager_geolocation
    type(imager_angles_t),      intent(inout) :: imager_angles
-   type(ecmwf_t),              intent(inout)    :: ecmwf
-   logical,                    intent(inout)    :: use_ecmwf_preproc_grid
+   type(ecmwf_t),              intent(inout) :: ecmwf
+   logical,                    intent(inout) :: use_ecmwf_preproc_grid
    integer(kind=lint)         :: i,j,k,lon_i,lat_j
    real(sreal)                :: fac
 
 
-   
+
    ! build the arrays for the regular grid
    if (use_ecmwf_preproc_grid) then
-      preproc_geoloc%latitude=ecmwf%lat(preproc_dims%min_lat_ind:preproc_dims%max_lat_ind)
-      preproc_geoloc%longitude=ecmwf%lon(preproc_dims%min_lon_ind:preproc_dims%max_lon_ind)
+      preproc_geoloc%latitude = ecmwf%lat(preproc_dims%min_lat_ind:preproc_dims%max_lat_ind)
+      preproc_geoloc%longitude = ecmwf%lon(preproc_dims%min_lon_ind:preproc_dims%max_lon_ind)
    else
        ! create grid resolution lat
       fac = 1. / preproc_dims%dellat
@@ -81,7 +81,7 @@ subroutine build_preproc_fields(preproc_dims, preproc_geoloc, preproc_geo, &
            (preproc_dims%min_lon-0.5)*fac - real(preproc_dims%lon_offset,sreal)
       do i = 2, preproc_dims%xdim
          preproc_geoloc%longitude(i) = preproc_geoloc%longitude(i-1) + fac
-      end do      
+      end do
    end if
 
    ! imager resolution is always higher than preprocessing resolution
@@ -139,8 +139,8 @@ subroutine build_preproc_fields(preproc_dims, preproc_geoloc, preproc_geo, &
    end do
 
    ! loop over preprocessor data i.e reduced resolution
-   do j = 1,preproc_dims%ydim
-      do i = 1,preproc_dims%xdim
+   do j = 1, preproc_dims%ydim
+      do i = 1, preproc_dims%xdim
          do k = 1, imager_angles%nviews
             if (preproc_dims%counter_lw(i,j,k) .gt. 0) then
                ! if this is a good preprocessing pixel, calculate the average

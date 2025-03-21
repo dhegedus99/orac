@@ -17,11 +17,11 @@
 ! Arguments:
 ! Name            Type In/Out/Both Description
 ! ------------------------------------------------------------------------------
-! nwp_path     string  In   NetCDF ECMWF file to be opened.
-! ecmwf          struct  both Structure summarising contents of ECMWF files.
+! nwp_path       string  In   NetCDF ECMWF file to be opened.
+! ecmwf          struct  Both Structure summarising contents of ECMWF files.
 ! preproc_dims   struct  In   Dimensions of the preprocessing grid.
 ! preproc_prtm   struct  Both Pressure-level information for RTTOV.
-! verbose        logic  in   T: Print min/max of each field; F: Don't.
+! verbose        logic   In   T: Print min/max of each field; F: Don't.
 !
 ! History:
 ! 2012/08/06, ??: Initial version ecmwf code
@@ -101,7 +101,7 @@ subroutine read_ecmwf_nc(nwp_path, ecmwf, preproc_dims, preproc_geoloc, &
    character(len=20),        dimension(1) :: charv
 
    real(sreal),       pointer             :: array2d(:,:), array3d(:,:,:)
-   integer(lint)                             :: n, ni, nj, i, j, k, ivar
+   integer(lint)                          :: n, ni, nj, i, j, k, ivar
    integer(4)                             :: fid, nvar
    integer(4)                             :: old_len, new_len
    character(len=20)                      :: name
@@ -333,14 +333,14 @@ end subroutine read_ecmwf_nc
 ! Arguments:
 ! Name            Type In/Out/Both Description
 ! ------------------------------------------------------------------------------
-! nwp_path     string  In   NetCDF ECMWF file to be opened.
-! ecmwf          struct  both Structure summarising contents of ECMWF files.
+! nwp_path       string  In   NetCDF ECMWF file to be opened.
+! ecmwf          struct  Both Structure summarising contents of ECMWF files.
 ! preproc_dims   struct  In   Dimensions of the preprocessing grid.
 ! preproc_prtm   struct  Both Pressure-level information for RTTOV.
-! verbose        logic  in   T: Print min/max of each field; F: Don't.
+! verbose        logic   In   T: Print min/max of each field; F: Don't.
 !
 ! History:
-! 2024/07/01, DH: Initial version ecmwf code when using ecmwf grid for 
+! 2024/07/01, DH: Initial version ecmwf code when using ecmwf grid for
 !    preprocessing
 !
 ! Bugs:
@@ -357,15 +357,15 @@ subroutine ecmwf_nc_for_preproc_structures(preproc_opts, ecmwf, preproc_geoloc, 
 
    implicit none
 
-   type(preproc_opts_t), intent(inout)    :: preproc_opts
-   type(ecmwf_t),           intent(inout)    :: ecmwf
+   type(preproc_opts_t),    intent(inout) :: preproc_opts
+   type(ecmwf_t),           intent(inout) :: ecmwf
    type(preproc_geoloc_t),  intent(inout) :: preproc_geoloc
    type(preproc_prtm_t),    intent(inout) :: preproc_prtm
    type(preproc_dims_t),    intent(inout) :: preproc_dims
    real,                    intent(in)    :: ecmwf_time_int_fac
    type(preproc_prtm_t)                   :: preproc_prtm1
    type(preproc_prtm_t)                   :: preproc_prtm2
-   integer,          intent(in)          :: date, ind
+   integer,                 intent(in)    :: date, ind
    logical,                 intent(in)    :: verbose
 
    character(len=20)                      :: name
@@ -377,7 +377,7 @@ subroutine ecmwf_nc_for_preproc_structures(preproc_opts, ecmwf, preproc_geoloc, 
    call ncdf_open(fid, preproc_opts%nwp_fnames%nwp_path_file(1), 'read_ecmwf_nc()')
    if (nf90_inquire(fid, nVariables=nvar) .ne. 0) &
         call h_e_e('nc', 'NF INQ failed.')
-   
+
    if (preproc_opts%ecmwf_time_int_method .eq. 2) then
         call allocate_preproc_prtm(preproc_dims, preproc_prtm1)
         call allocate_preproc_prtm(preproc_dims, preproc_prtm2)
@@ -391,11 +391,11 @@ subroutine ecmwf_nc_for_preproc_structures(preproc_opts, ecmwf, preproc_geoloc, 
             call ecmwf_read_var(fid0, preproc_opts%nwp_fnames, 1, preproc_prtm, preproc_dims, ecmwf, ivar, date, ind, name)
          else
             call ecmwf_read_var(fid0, preproc_opts%nwp_fnames, 1, preproc_prtm, preproc_dims, ecmwf, ivar, date, ind, name)
-            
+
             call ecmwf_read_var(fid1, preproc_opts%nwp_fnames, 1, preproc_prtm1, preproc_dims, ecmwf, ivar, date, ind, name)
-            
+
             call ecmwf_read_var(fid2, preproc_opts%nwp_fnames, 2, preproc_prtm2, preproc_dims, ecmwf, ivar, date, ind, name)
-            
+
          end if
       end if
   end do
@@ -405,7 +405,7 @@ subroutine ecmwf_nc_for_preproc_structures(preproc_opts, ecmwf, preproc_geoloc, 
   end if
   call deallocate_preproc_prtm(preproc_prtm1)
   call deallocate_preproc_prtm(preproc_prtm2)
-  call ncdf_close(fid, 'read_ecmwf_nc()')  
+  call ncdf_close(fid, 'read_ecmwf_nc()')
 end subroutine ecmwf_nc_for_preproc_structures
 
 
@@ -417,16 +417,16 @@ subroutine ecmwf_read_var(fid, nwp_fnames, idx, preproc_prtm, preproc_dims, ecmw
 
    implicit none
 
-   integer,          intent(in)              :: idx
-   type(preproc_prtm_t),    intent(inout) :: preproc_prtm
-   type(preproc_dims_t),    intent(inout) :: preproc_dims
-   type(ecmwf_t),           intent(inout)    :: ecmwf
-   character(len=20), intent(out)         :: name
+   integer,                    intent(in)    :: idx
+   type(preproc_prtm_t),       intent(inout) :: preproc_prtm
+   type(preproc_dims_t),       intent(inout) :: preproc_dims
+   type(ecmwf_t),              intent(inout) :: ecmwf
+   character(len=20),          intent(out)   :: name
    type(preproc_nwp_fnames_t), intent(inout) :: nwp_fnames
-   integer,          intent(in)          :: date, ind
-   integer(4), intent(in)          :: ivar
-   integer(4)                             :: fid
-   integer(4)                             :: nvar
+   integer,                    intent(in)    :: date, ind
+   integer(4),                 intent(in)    :: ivar
+   integer(4)    :: fid
+   integer(4)    :: nvar
    real(sreal)   :: dummy2d(ecmwf%xdim,ecmwf%ydim)
    real(sreal)   :: dummy3d(ecmwf%xdim,ecmwf%ydim,ecmwf%kdim)
 #ifdef WRAPPER
@@ -442,88 +442,107 @@ subroutine ecmwf_read_var(fid, nwp_fnames, idx, preproc_prtm, preproc_dims, ecmw
         call h_e_e('nc', 'NF VAR INQUIRE failed.')
 
    ! determine if field exists
-      select case (name)
-      case('Z', 'z')
-         call ncdf_read_array(fid, name, dummy2d)
-         call rearrange_ecmwf_var2d(ecmwf, dummy2d, date, ind)
-         preproc_prtm%geopot =dummy2d(preproc_dims%min_lon_ind:preproc_dims%max_lon_ind, &
-                                      preproc_dims%min_lat_ind:preproc_dims%max_lat_ind)
-      case('Q', 'q')
-         call ncdf_read_array(fid, name, dummy3d)
-         call rearrange_ecmwf_var3d(ecmwf, dummy3d, date, ind)
-         preproc_prtm%spec_hum = dummy3d(preproc_dims%min_lon_ind:preproc_dims%max_lon_ind, &
-                                         preproc_dims%min_lat_ind:preproc_dims%max_lat_ind, :) 
-      case('T')
-         call ncdf_read_array(fid, name, dummy3d)
-         call rearrange_ecmwf_var3d(ecmwf, dummy3d, date, ind)
-         preproc_prtm%temperature =dummy3d(preproc_dims%min_lon_ind:preproc_dims%max_lon_ind, &
-                                           preproc_dims%min_lat_ind:preproc_dims%max_lat_ind, :) 
-      case('O3', 'o3')
-         call ncdf_read_array(fid, name, dummy3d)
-         call rearrange_ecmwf_var3d(ecmwf, dummy3d, date, ind)
-         preproc_prtm%ozone =dummy3d(preproc_dims%min_lon_ind:preproc_dims%max_lon_ind, &
-                                     preproc_dims%min_lat_ind:preproc_dims%max_lat_ind, :)
-      case('LNSP', 'lnsp')
-         call ncdf_read_array(fid, name, dummy2d)
-         call rearrange_ecmwf_var2d(ecmwf, dummy2d, date, ind)
-         preproc_prtm%lnsp =dummy2d(preproc_dims%min_lon_ind:preproc_dims%max_lon_ind, &
-                                    preproc_dims%min_lat_ind:preproc_dims%max_lat_ind)
-      case('CI', 'ci')
-         call ncdf_read_array(fid, name, dummy2d)
-         call rearrange_ecmwf_var2d(ecmwf, dummy2d, date, ind)
-         preproc_prtm%sea_ice_cover =dummy2d(preproc_dims%min_lon_ind:preproc_dims%max_lon_ind, &
-                                             preproc_dims%min_lat_ind:preproc_dims%max_lat_ind)
-      case('ASN', 'asn')
-         call ncdf_read_array(fid, name, dummy2d)
-         call rearrange_ecmwf_var2d(ecmwf, dummy2d, date, ind)
-         preproc_prtm%snow_albedo =dummy2d(preproc_dims%min_lon_ind:preproc_dims%max_lon_ind, &
-                                           preproc_dims%min_lat_ind:preproc_dims%max_lat_ind)
-      case('TCWV', 'tcwv')
-         call ncdf_read_array(fid, name, dummy2d)
-         call rearrange_ecmwf_var2d(ecmwf, dummy2d, date, ind)
-         preproc_prtm%totcolwv =dummy2d(preproc_dims%min_lon_ind:preproc_dims%max_lon_ind, &
-                                        preproc_dims%min_lat_ind:preproc_dims%max_lat_ind)
-      case('SD', 'sd')
-         call ncdf_read_array(fid, name, dummy2d)
-         call rearrange_ecmwf_var2d(ecmwf, dummy2d, date, ind)
-         preproc_prtm%snow_depth =dummy2d(preproc_dims%min_lon_ind:preproc_dims%max_lon_ind, &
-                                          preproc_dims%min_lat_ind:preproc_dims%max_lat_ind)
-      case('U10', 'u10', 'U10M')
-         call ncdf_read_array(fid, name, dummy2d)
-         call rearrange_ecmwf_var2d(ecmwf, dummy2d, date, ind)
-         preproc_prtm%u10 =dummy2d(preproc_dims%min_lon_ind:preproc_dims%max_lon_ind, &
-                                   preproc_dims%min_lat_ind:preproc_dims%max_lat_ind)
-      case('V10', 'v10', 'V10M')
-         call ncdf_read_array(fid, name, dummy2d)
-         call rearrange_ecmwf_var2d(ecmwf, dummy2d, date, ind)
-         preproc_prtm%v10=dummy2d(preproc_dims%min_lon_ind:preproc_dims%max_lon_ind, preproc_dims%min_lat_ind:preproc_dims%max_lat_ind)
-      case('T2', 't2', 'T2M')
-         call ncdf_read_array(fid, name, dummy2d)
-         call rearrange_ecmwf_var2d(ecmwf, dummy2d, date, ind)
-         preproc_prtm%temp2 =dummy2d(preproc_dims%min_lon_ind:preproc_dims%max_lon_ind, &
-                                     preproc_dims%min_lat_ind:preproc_dims%max_lat_ind)
-      case('SKT', 'skt')
-         call ncdf_read_array(fid, name, dummy2d)
-         call rearrange_ecmwf_var2d(ecmwf, dummy2d, date, ind)
-         preproc_prtm%skin_temp =dummy2d(preproc_dims%min_lon_ind:preproc_dims%max_lon_ind, &
-                                         preproc_dims%min_lat_ind:preproc_dims%max_lat_ind)
-      case('SSTK', 'sstk')
-         call ncdf_read_array(fid, name, dummy2d)
-         call rearrange_ecmwf_var2d(ecmwf, dummy2d, date, ind)
-         preproc_prtm%sst =dummy2d(preproc_dims%min_lon_ind:preproc_dims%max_lon_ind, &
-                                   preproc_dims%min_lat_ind:preproc_dims%max_lat_ind)
-      case('AL', 'al', 'LSM')
-         call ncdf_read_array(fid, name, dummy2d)
-         call rearrange_ecmwf_var2d(ecmwf, dummy2d, date, ind)
-         preproc_prtm%land_sea_mask =dummy2d(preproc_dims%min_lon_ind:preproc_dims%max_lon_ind, &
-                                             preproc_dims%min_lat_ind:preproc_dims%max_lat_ind)
+   select case (name)
+   case('Z', 'z')
+      call ncdf_read_array(fid, name, dummy2d)
+      call rearrange_ecmwf_var2d(ecmwf, dummy2d, date, ind)
+      preproc_prtm%geopot = dummy2d( &
+           preproc_dims%min_lon_ind:preproc_dims%max_lon_ind, &
+           preproc_dims%min_lat_ind:preproc_dims%max_lat_ind)
+   case('Q', 'q')
+      call ncdf_read_array(fid, name, dummy3d)
+      call rearrange_ecmwf_var3d(ecmwf, dummy3d, date, ind)
+      preproc_prtm%spec_hum = dummy3d( &
+           preproc_dims%min_lon_ind:preproc_dims%max_lon_ind, &
+           preproc_dims%min_lat_ind:preproc_dims%max_lat_ind, :)
+   case('T')
+      call ncdf_read_array(fid, name, dummy3d)
+      call rearrange_ecmwf_var3d(ecmwf, dummy3d, date, ind)
+      preproc_prtm%temperature = dummy3d( &
+           preproc_dims%min_lon_ind:preproc_dims%max_lon_ind, &
+           preproc_dims%min_lat_ind:preproc_dims%max_lat_ind, :)
+   case('O3', 'o3')
+      call ncdf_read_array(fid, name, dummy3d)
+      call rearrange_ecmwf_var3d(ecmwf, dummy3d, date, ind)
+      preproc_prtm%ozone = dummy3d( &
+           preproc_dims%min_lon_ind:preproc_dims%max_lon_ind, &
+           preproc_dims%min_lat_ind:preproc_dims%max_lat_ind, :)
+   case('LNSP', 'lnsp')
+      call ncdf_read_array(fid, name, dummy2d)
+      call rearrange_ecmwf_var2d(ecmwf, dummy2d, date, ind)
+      preproc_prtm%lnsp = dummy2d( &
+           preproc_dims%min_lon_ind:preproc_dims%max_lon_ind, &
+           preproc_dims%min_lat_ind:preproc_dims%max_lat_ind)
+   case('CI', 'ci')
+      call ncdf_read_array(fid, name, dummy2d)
+      call rearrange_ecmwf_var2d(ecmwf, dummy2d, date, ind)
+      preproc_prtm%sea_ice_cover = dummy2d( &
+           preproc_dims%min_lon_ind:preproc_dims%max_lon_ind, &
+           preproc_dims%min_lat_ind:preproc_dims%max_lat_ind)
+   case('ASN', 'asn')
+      call ncdf_read_array(fid, name, dummy2d)
+      call rearrange_ecmwf_var2d(ecmwf, dummy2d, date, ind)
+      preproc_prtm%snow_albedo = dummy2d( &
+           preproc_dims%min_lon_ind:preproc_dims%max_lon_ind, &
+           preproc_dims%min_lat_ind:preproc_dims%max_lat_ind)
+   case('TCWV', 'tcwv')
+      call ncdf_read_array(fid, name, dummy2d)
+      call rearrange_ecmwf_var2d(ecmwf, dummy2d, date, ind)
+      preproc_prtm%totcolwv = dummy2d( &
+           preproc_dims%min_lon_ind:preproc_dims%max_lon_ind, &
+           preproc_dims%min_lat_ind:preproc_dims%max_lat_ind)
+   case('SD', 'sd')
+      call ncdf_read_array(fid, name, dummy2d)
+      call rearrange_ecmwf_var2d(ecmwf, dummy2d, date, ind)
+      preproc_prtm%snow_depth = dummy2d( &
+           preproc_dims%min_lon_ind:preproc_dims%max_lon_ind, &
+           preproc_dims%min_lat_ind:preproc_dims%max_lat_ind)
+   case('U10', 'u10', 'U10M')
+      call ncdf_read_array(fid, name, dummy2d)
+      call rearrange_ecmwf_var2d(ecmwf, dummy2d, date, ind)
+      preproc_prtm%u10 = dummy2d( &
+           preproc_dims%min_lon_ind:preproc_dims%max_lon_ind, &
+           preproc_dims%min_lat_ind:preproc_dims%max_lat_ind)
+   case('V10', 'v10', 'V10M')
+      call ncdf_read_array(fid, name, dummy2d)
+      call rearrange_ecmwf_var2d(ecmwf, dummy2d, date, ind)
+      preproc_prtm%v10 = dummy2d( &
+           preproc_dims%min_lon_ind:preproc_dims%max_lon_ind, &
+           preproc_dims%min_lat_ind:preproc_dims%max_lat_ind)
+   case('T2', 't2', 'T2M')
+      call ncdf_read_array(fid, name, dummy2d)
+      call rearrange_ecmwf_var2d(ecmwf, dummy2d, date, ind)
+      preproc_prtm%temp2 = dummy2d( &
+           preproc_dims%min_lon_ind:preproc_dims%max_lon_ind, &
+           preproc_dims%min_lat_ind:preproc_dims%max_lat_ind)
+   case('SKT', 'skt')
+      call ncdf_read_array(fid, name, dummy2d)
+      call rearrange_ecmwf_var2d(ecmwf, dummy2d, date, ind)
+      preproc_prtm%skin_temp = dummy2d( &
+           preproc_dims%min_lon_ind:preproc_dims%max_lon_ind, &
+           preproc_dims%min_lat_ind:preproc_dims%max_lat_ind)
+   case('SSTK', 'sstk')
+      call ncdf_read_array(fid, name, dummy2d)
+      call rearrange_ecmwf_var2d(ecmwf, dummy2d, date, ind)
+      preproc_prtm%sst = dummy2d( &
+           preproc_dims%min_lon_ind:preproc_dims%max_lon_ind, &
+           preproc_dims%min_lat_ind:preproc_dims%max_lat_ind)
+   case('AL', 'al', 'LSM')
+      call ncdf_read_array(fid, name, dummy2d)
+      call rearrange_ecmwf_var2d(ecmwf, dummy2d, date, ind)
+      preproc_prtm%land_sea_mask = dummy2d( &
+           preproc_dims%min_lon_ind:preproc_dims%max_lon_ind, &
+           preproc_dims%min_lat_ind:preproc_dims%max_lat_ind)
 #ifdef INCLUDE_SATWX
-      case('cape', 'CAPE')
-         call ncdf_read_array(fid, name, dummy3d)
-         call rearrange_ecmwf_var3d(ecmwf, dummy3d, date, ind)
-         preproc_prtm%cape =dummy2d(preproc_dims%min_lon_ind:preproc_dims%max_lon_ind, &
-                                    preproc_dims%min_lat_ind:preproc_dims%max_lat_ind)
-#endif     
-      end select
+   case('cape', 'CAPE')
+      call ncdf_read_array(fid, name, dummy3d)
+      call rearrange_ecmwf_var3d(ecmwf, dummy3d, date, ind)
+      preproc_prtm%cape = dummy2d( &
+           preproc_dims%min_lon_ind:preproc_dims%max_lon_ind, &
+           preproc_dims%min_lat_ind:preproc_dims%max_lat_ind)
+#endif
+   end select
+
    call ncdf_close(fid, 'read_ecmwf_nc()')
+
 end subroutine ecmwf_read_var

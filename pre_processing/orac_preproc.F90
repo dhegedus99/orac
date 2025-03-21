@@ -898,7 +898,7 @@ subroutine orac_preproc(mytask, ntasks, lower_bound, upper_bound, driver_path_fi
          call deallocate_ecmwf_structures(ecmwf1)
          call deallocate_ecmwf_structures(ecmwf2)
       end if
-      
+
       ! define preprocessing grid from user grid spacing and satellite limits
       if (verbose) write(*,*) 'Define preprocessing grid'
       if (preproc_opts%use_ecmwf_preproc_grid) then
@@ -907,7 +907,7 @@ subroutine orac_preproc(mytask, ntasks, lower_bound, upper_bound, driver_path_fi
          preproc_dims%kdim = ecmwf%kdim
          call define_preprop_grid(imager_geolocation, preproc_dims, verbose)
 
-      end if 
+      end if
 
       ! allocate preprocessing structures
       if (verbose) write(*,*) 'Allocate preprocessing structures'
@@ -1026,67 +1026,12 @@ subroutine orac_preproc(mytask, ntasks, lower_bound, upper_bound, driver_path_fi
                 preproc_opts%do_nasa, verbose)
          end if
       end if
-      
+
       if (preproc_opts%do_dust_correction) then
          if (verbose) write(*,*) 'Apply dust-detection correction to cloud mask'
          call correct_for_dust(channel_info, imager_measurements, imager_angles, &
-              imager_geolocation, imager_pavolonis)
+              imager_geolocation, imager_pavolonis, verbose)
       end if
-      
-!!$      if (imager_angles%nviews .gt. 1) then
-!!$         ! A temporary hack for Aerosol_cci:
-!!$         ! Due to the cloud masking being very effective at detecting dust,
-!!$         ! we'll try and re-introduce it
-!!$         if (trim(adjustl(granule%sensor)) .eq. 'AATSR' .or. &
-!!$            trim(adjustl(granule%sensor)) .eq. 'ATSR2' .or. &
-!!$            trim(adjustl(granule%sensor)) .eq. 'SLSTR') then
-!!$            if (1 .eq. 1 .and. &
-!!$                 minval(imager_geolocation%latitude)  .lt.  40.0 .and. &
-!!$                 maxval(imager_geolocation%latitude)  .gt.   0.0 .and. &
-!!$                 minval(imager_geolocation%longitude) .lt.  75.0 .and. &
-!!$                 maxval(imager_geolocation%longitude) .gt. -40.0) then
-!!$               if (verbose) write(*,*) 'Aerosol_cci dust correction hack is underway'
-!!$               allocate(tot_cldmask_uncertainty( &
-!!$                    imager_geolocation%startx:imager_geolocation%endx, &
-!!$                    1:imager_geolocation%ny) )
-!!$               ! product a smoothed version of the cldmask uncertainty
-!!$               if (verbose) then
-!!$                  write(*,*) minval(imager_pavolonis%cldmask_uncertainty(:,:,1)), &
-!!$                       maxval(imager_pavolonis%cldmask_uncertainty(:,:,1))
-!!$                  write(*,*) minval(imager_pavolonis%cldmask_uncertainty(:,:,2)), &
-!!$                       maxval(imager_pavolonis%cldmask_uncertainty(:,:,2))
-!!$               end if
-!!$
-!!$               tot_cldmask_uncertainty(:,:) = &
-!!$                    imager_pavolonis%cldmask_uncertainty(:,:,1) + &
-!!$                    imager_pavolonis%cldmask_uncertainty(:,:,2)
-!!$
-!!$               if (verbose) write(*,*) 'Total cldmask uncertainty: min-max', &
-!!$                    minval(tot_cldmask_uncertainty), maxval(tot_cldmask_uncertainty)
-!!$               ! Now use this smoothed mask, and the pavolonis cloud type
-!!$               ! to "de-mask" possibly dust-filled pixels
-!!$               ! Note that we leave the cldtype  alone, so we can still tell
-!!$               ! that the pixels were originally flagged as cloud
-!!$               if (verbose) write(*,*) 'Total clouds before correction: ', &
-!!$                    count(imager_pavolonis%cldmask(:,:,1) .gt. 0), &
-!!$                    count(imager_pavolonis%cldmask(:,:,2) .gt. 0)
-!!$               where(tot_cldmask_uncertainty .gt. 70          .and. &
-!!$                    (imager_pavolonis%cldtype(:,:,1) .eq. 3  .or. &
-!!$                    imager_pavolonis%cldtype(:,:,2) .eq. 3) .and. &
-!!$                    imager_geolocation%latitude .gt.    0.0  .and. &
-!!$                    imager_geolocation%latitude .lt.   40.0  .and. &
-!!$                    imager_geolocation%longitude .gt. -40.0  .and. &
-!!$                    imager_geolocation%longitude .lt.  75.0)
-!!$                  imager_pavolonis%cldmask(:,:,1) = 0
-!!$                  imager_pavolonis%cldmask(:,:,2) = 0
-!!$               end where
-!!$               if (verbose) write(*,*) 'Total clouds after correction: ', &
-!!$                    count(imager_pavolonis%cldmask(:,:,1) .gt. 0), &
-!!$                    count(imager_pavolonis%cldmask(:,:,2) .gt. 0)
-!!$               deallocate(tot_cldmask_uncertainty)
-!!$            end if
-!!$         end if
-!!$      end if
 
       ! create output netcdf files.
       if (verbose) write(*,*) 'Create output netcdf files'

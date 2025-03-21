@@ -191,11 +191,11 @@ subroutine read_ecmwf_grib(ecmwf_file, preproc_dims, preproc_geoloc, &
                  1:preproc_dims%ydim,level)
       case(129)
          array => preproc_prtm%geopot( &
-                 1:preproc_dims%xdim, & 
+                 1:preproc_dims%xdim, &
                  1:preproc_dims%ydim)
       case(152)
          array => preproc_prtm%lnsp( &
-                 1:preproc_dims%xdim, & 
+                 1:preproc_dims%xdim, &
                  1:preproc_dims%ydim)
       case(31)
          array => preproc_prtm%sea_ice_cover(  &

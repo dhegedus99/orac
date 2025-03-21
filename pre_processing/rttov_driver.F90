@@ -902,7 +902,7 @@ subroutine rttov_driver(coef_path, emiss_path, granule, preproc_dims, &
                end if
             end do
          end do
-         
+
          ! Loop again for cloud radiance
          if (pre_opts%do_cloud_emis) then
             count = 0
