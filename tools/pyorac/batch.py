@@ -24,7 +24,7 @@ A command is generated with the print_batch() function. It must be given a
 dictionary. The dictionary's keys should match elements defined when the class
 was created and the contents are the value that argument should take. To
 produce the wait example above:
-   >>> qsub.print_batch({'depend' : 1234, 'ram' : 2})
+   >>> QSUB.print_batch({'depend' : 1234, 'ram' : 2})
    'qsub -l h_vmem=2M -hold-jid 1234'
 The optional argument 'exe' adds the command you want to queue, which can be a
 single string or a subprocess.call()-style tuple/list.

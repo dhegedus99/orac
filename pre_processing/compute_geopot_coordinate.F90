@@ -5,8 +5,8 @@
 ! Compute geopotential vertical coordinate from pressure coordinate
 !
 ! Description and Algorithm details:
-! This code is based on details given in the following ECMWF documentation:
-! http://www.ecmwf.int/research/ifsdocs/DYNAMICS/Chap2_Discretization4.html#961180
+! This code is based on details given in S2.2.1 of the following ECMWF documentation:
+! https://www.ecmwf.int/sites/default/files/elibrary/2023/81369-ifs-documentation-cy48r1-part-iii-dynamics-and-numerical-procedures.pdf
 !
 ! Arguments:
 ! Name         Type In/Out/Both Description

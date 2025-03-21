@@ -7,7 +7,8 @@ from pyorac import __version__, __website__
 root_path = os.path.dirname(__file__)
 
 dependencies = ["cartopy",
-                "cf-units",
+                "cftime",
+                "python-dateutil",
                 "h5py",
                 "matplotlib>=3.0",
                 "netcdf4>=1.0",
@@ -15,7 +16,9 @@ dependencies = ["cartopy",
                 "scipy>=0.15.0",
                 "opencv"]
 
-optional_dependencies = {}
+optional_dependencies = {
+    "nv": ["nvector"],
+}
 
 test_dependencies = []
 
