@@ -283,12 +283,13 @@ subroutine ecmwf_wind_init(ecmwf)
 end subroutine ecmwf_wind_init
 
 
-subroutine dup_ecmwf_allocation(ecmwf, ecmwf2)
+subroutine dup_ecmwf_allocation(ecmwf, ecmwf2, nwp_flag)
 
    implicit none
 
    type(ecmwf_t), intent(in)  :: ecmwf
    type(ecmwf_t), intent(inout) :: ecmwf2
+   integer,          intent(in)    :: nwp_flag
 
    ecmwf2%xdim = ecmwf%xdim
    ecmwf2%ydim = ecmwf%ydim
@@ -296,8 +297,14 @@ subroutine dup_ecmwf_allocation(ecmwf, ecmwf2)
 
    allocate(ecmwf2%lon(ecmwf%xdim))
    allocate(ecmwf2%lat(ecmwf%ydim))
-   allocate(ecmwf2%avec(ecmwf%kdim+1))
-   allocate(ecmwf2%bvec(ecmwf%kdim+1))
+   
+   if (nwp_flag .gt. 0) then
+      allocate(ecmwf2%avec(ecmwf%kdim+1))
+      allocate(ecmwf2%bvec(ecmwf%kdim+1))
+   else
+      allocate(ecmwf2%avec(ecmwf%kdim))
+      allocate(ecmwf2%bvec(ecmwf%kdim))
+   end if
    allocate(ecmwf2%u10(ecmwf%xdim,ecmwf%ydim))
    allocate(ecmwf2%v10(ecmwf%xdim,ecmwf%ydim))
    allocate(ecmwf2%skin_temp(ecmwf%xdim,ecmwf%ydim))

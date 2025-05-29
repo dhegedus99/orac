@@ -508,7 +508,7 @@ subroutine orac_preproc(mytask, ntasks, lower_bound, upper_bound, driver_path_fi
    preproc_opts%mcd43_max_qaflag         = 5
    preproc_opts%do_dust_correction       = .true.
    preproc_opts%use_ecmwf_preproc_grid   = .false.
-
+   
    ! When true, the offset between the nadir and oblique views is read from
    ! the track_offset global attribute. Otherwise, the two longitude fields are
    ! read and compared to determine an appropriate offset.
@@ -643,7 +643,7 @@ subroutine orac_preproc(mytask, ntasks, lower_bound, upper_bound, driver_path_fi
 
    ! If we're using an external land-sea file, place that into USGS filename var
    if (preproc_opts%use_predef_lsm) usgs_path_file = preproc_opts%ext_lsm_path
-
+   
    if (preproc_opts%nwp_fnames%nwp_path(2) .eq. '') &
       preproc_opts%nwp_fnames%nwp_path(2) =  preproc_opts%nwp_fnames%nwp_path(1)
    if (preproc_opts%nwp_fnames%nwp_path2(2) .eq. '') &
@@ -890,7 +890,7 @@ subroutine orac_preproc(mytask, ntasks, lower_bound, upper_bound, driver_path_fi
          call read_ecmwf_wind(nwp_flag, preproc_opts%nwp_fnames, 1, ecmwf1, preproc_opts%nwp_nlevels, date, ind, verbose)
          call read_ecmwf_wind(nwp_flag, preproc_opts%nwp_fnames, 2, ecmwf2, preproc_opts%nwp_nlevels, date, ind, verbose)
 
-         call dup_ecmwf_allocation(ecmwf1, ecmwf)
+         call dup_ecmwf_allocation(ecmwf1, ecmwf, nwp_flag)
 
          call linearly_combine_ecmwfs(1.-ecmwf_time_int_fac, &
               ecmwf_time_int_fac, ecmwf1, ecmwf2, ecmwf)
@@ -952,7 +952,7 @@ subroutine orac_preproc(mytask, ntasks, lower_bound, upper_bound, driver_path_fi
       if (verbose) write(*,*) 'Compute geopotential vertical coords'
       ! compute geopotential vertical coordinate from pressure coordinate
       ! First check that we're not processing a GFS file
-      if (nwp_flag .le. 5 .or. nwp_flag .gt. 8) call &
+      if ((nwp_flag .gt. 0 .and. nwp_flag .le. 5) .or. nwp_flag .gt. 8) call &
          compute_geopot_coordinate(preproc_prtm, preproc_dims, ecmwf)
 
       ! read USGS physiography file, including land use and DEM data
@@ -1045,7 +1045,7 @@ subroutine orac_preproc(mytask, ntasks, lower_bound, upper_bound, driver_path_fi
 
       ! perform RTTOV calculations
       if (verbose) write(*,*) 'Perform RTTOV calculations'
-      if (nwp_flag .gt. 5 .and. nwp_flag .le. 8) then
+      if (nwp_flag.eq.0.or.nwp_flag.gt.4) then
          call rttov_driver_gfs(rttov_coef_path, rttov_emiss_path, granule, &
               preproc_dims, preproc_geoloc, preproc_geo, preproc_prtm, &
               preproc_surf, preproc_cld, netcdf_info, channel_info, &

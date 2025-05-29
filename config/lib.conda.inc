@@ -1,5 +1,6 @@
 # Base directory for all libraries and include files taken from the
 # environmental variable CONDA_PREFIX.
+CONDA_PREFIX=/home/users/dhegedus/miniconda3/envs/orac_git
 
 # Set up libraries and includes
 LIBS = -L$(CONDA_PREFIX)/lib \
@@ -56,5 +57,5 @@ INC  += -DINCLUDE_SEVIRI_SUPPORT
 
 # Uncomment if SEVIRI_ML support is desired.
 # Please modify Python -lpython3.X to your Python version.
-#LIBS += -lsevann -lpython3.10
-#INC  += -DINCLUDE_SEVIRI_NEURALNET
+LIBS += -lsevann -lpython3.10
+INC  += -DINCLUDE_SEVIRI_NEURALNET

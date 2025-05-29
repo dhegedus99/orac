@@ -185,6 +185,9 @@ subroutine parse_optional(label, value, preproc_opts)
    case('USE_ECMWF_PREPROC_GRID')
       if (parse_string(value, preproc_opts%use_ecmwf_preproc_grid) /= 0) &
            call handle_parse_error(label)
+   case('ECMWF_PATH2')
+      if (parse_string(value, preproc_opts%nwp_fnames%nwp_path(2)) /= 0) &
+           call handle_parse_error(label)
    case default
       write(*,*) 'ERROR: Unknown option: ', trim(label)
       stop error_stop_code
