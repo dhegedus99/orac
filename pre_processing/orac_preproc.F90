@@ -508,7 +508,6 @@ subroutine orac_preproc(mytask, ntasks, lower_bound, upper_bound, driver_path_fi
    preproc_opts%mcd43_max_qaflag         = 5
    preproc_opts%do_dust_correction       = .true.
    preproc_opts%use_ecmwf_preproc_grid   = .false.
-   
    ! When true, the offset between the nadir and oblique views is read from
    ! the track_offset global attribute. Otherwise, the two longitude fields are
    ! read and compared to determine an appropriate offset.
@@ -643,7 +642,6 @@ subroutine orac_preproc(mytask, ntasks, lower_bound, upper_bound, driver_path_fi
 
    ! If we're using an external land-sea file, place that into USGS filename var
    if (preproc_opts%use_predef_lsm) usgs_path_file = preproc_opts%ext_lsm_path
-   
    if (preproc_opts%nwp_fnames%nwp_path(2) .eq. '') &
       preproc_opts%nwp_fnames%nwp_path(2) =  preproc_opts%nwp_fnames%nwp_path(1)
    if (preproc_opts%nwp_fnames%nwp_path2(2) .eq. '') &

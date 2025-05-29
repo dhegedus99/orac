@@ -269,7 +269,6 @@ subroutine read_gfs_grib(ecmwf_file,preproc_dims,preproc_geoloc, &
          array => preproc_prtm%trop_p( &
                  1:preproc_dims%xdim, &
                  1:preproc_dims%ydim)
-         preproc_prtm%trop_p = preproc_prtm%trop_p * pa2hpa
       case default
          cycle
       end select
@@ -288,9 +287,8 @@ subroutine read_gfs_grib(ecmwf_file,preproc_dims,preproc_geoloc, &
       if (verbose) print*,param,') Min: ',minval(array), &
               ', Max: ',maxval(array)
    end do
-   
    ! GFS pressures are in Pa rather than hPa
-   
+   preproc_prtm%trop_p = preproc_prtm%trop_p * pa2hpa
 
    ! GFS has no skin temperature variable
    preproc_prtm%skin_temp = preproc_prtm%temperature(:,:,tlev-1)
@@ -377,7 +375,6 @@ subroutine sort_gfs_levels(preproc_prtm, verbose)
          q = preproc_prtm%spec_hum(i,j,:)
          o = preproc_prtm%ozone(i,j,:)
          pl = preproc_prtm%phi_lev(i,j,:)
-         
          ! Loop over all levels to find last level above surface
          do l = 2, nl
             if (p(l) .gt. surfp) then
