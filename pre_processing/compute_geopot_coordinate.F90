@@ -131,7 +131,6 @@ subroutine compute_geopot_coordinate_gfs(preproc_prtm, preproc_dims, ecmwf)
                ! Pressure computation
                p = ecmwf%avec(ik) + ecmwf%bvec(ik)*sp
                preproc_prtm%pressure(ii,ij,ik) = 0.5 * (p + pp1)
-               print*, preproc_prtm%temperature(ii,ij,ik)
                ! Interpolation of temperature and spec_hum
                if (preproc_prtm%pressure(ii,ij,ik) < ecmwf%pressure(ii,ij,1)) then
                   preproc_prtm%temperature(ii,ij,ik) = ecmwf%temperature(ii,ij,1)
