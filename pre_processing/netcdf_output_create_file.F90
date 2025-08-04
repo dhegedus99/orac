@@ -155,7 +155,6 @@ subroutine netcdf_create_rtm(global_atts, source_atts, cyear, cmonth, cday, chou
 
    ! Set number of vertical levels/layers here, as GFS is different to ECMWF
    kdim = preproc_dims%kdim+1
-   if (nwp_flag .eq. 0) kdim = kdim-1
 
    if (type .eq. NETCDF_OUTPUT_FILE_LWRTM) then
 
