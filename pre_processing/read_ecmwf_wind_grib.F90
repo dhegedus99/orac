@@ -108,8 +108,8 @@ subroutine read_ecmwf_wind_grib(nwp_path, ecmwf, nwp_flag)
       allocate(ecmwf%avec(nk+1))
       allocate(ecmwf%bvec(nk+1))
    else
-      allocate(ecmwf%avec(ecmwf%kdim))
-      allocate(ecmwf%bvec(ecmwf%kdim))
+      allocate(ecmwf%avec(ecmwf%kdim+1))
+      allocate(ecmwf%bvec(ecmwf%kdim+1))
    end if
    allocate(ecmwf%u10(ni,nj))
    allocate(ecmwf%v10(ni,nj))

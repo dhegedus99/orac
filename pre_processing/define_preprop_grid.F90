@@ -125,7 +125,7 @@ end subroutine define_preprop_grid
 ! None known.
 !-------------------------------------------------------------------------------
 
-subroutine define_preproc_grid_ecmwf(imager_geolocation, preproc_dims, ecmwf, verbose)
+subroutine define_preproc_grid_ecmwf(imager_geolocation, preproc_dims, ecmwf, verbose, nwp_flag)
 
    use preproc_constants_m
    use preproc_structures_m
@@ -138,6 +138,7 @@ subroutine define_preproc_grid_ecmwf(imager_geolocation, preproc_dims, ecmwf, ve
    type(preproc_dims_t),    intent(inout) :: preproc_dims
    type(imager_geolocation_t), intent(in)    :: imager_geolocation
    logical,                    intent(in)    :: verbose
+   integer,       intent(in)                 :: nwp_flag
 
    integer :: min_lon_ind, max_lon_ind, min_lat_ind, max_lat_ind
 
@@ -148,7 +149,6 @@ subroutine define_preproc_grid_ecmwf(imager_geolocation, preproc_dims, ecmwf, ve
       max_lat_ind = minloc(abs(ecmwf%lat - maxval(imager_geolocation%latitude)),1)
 
       ! use ecmwf grid for preproc grid
-      preproc_dims%kdim = ecmwf%kdim
       preproc_dims%xdim = max_lon_ind - min_lon_ind +1
       preproc_dims%ydim = max_lat_ind - min_lat_ind +1
       preproc_dims%min_lat = ecmwf%lat(min_lat_ind)

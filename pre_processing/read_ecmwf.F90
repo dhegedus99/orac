@@ -53,6 +53,8 @@ subroutine read_ecmwf_wind(nwp_flag, nwp_fnames, idx, ecmwf, &
    select case(nwp_nlevels)
    case(31)
       ecmwf%kdim = 31
+   case(41)
+      ecmwf%kdim = 41
    case(60)
       ecmwf%kdim = 60
    case(91)
@@ -148,7 +150,7 @@ subroutine read_ecmwf(nwp_flag,nwp_fnames, idx, ecmwf, preproc_dims, &
    case(0)
       if (verbose) write(*,*) 'Reading gfs path: ', trim(nwp_fnames%nwp_path_file(idx))
       call read_gfs_grib(nwp_fnames%nwp_path_file(idx), preproc_dims, preproc_geoloc, &
-           preproc_prtm, verbose)
+           preproc_prtm, ecmwf, nwp_flag, verbose)
    case(1)
       if (verbose) write(*,*) 'Reading ECMWF path: ', trim(nwp_fnames%nwp_path_file(idx))
       call read_ecmwf_nc(nwp_fnames%nwp_path_file(idx), ecmwf, preproc_dims, preproc_geoloc, &
@@ -199,7 +201,10 @@ end subroutine read_ecmwf
 ! - only works for nwp_flag=1-3, not implemented for ERA-Interim and NOAA GFS
 !-------------------------------------------------------------------------------
 
-subroutine ecmwf_for_preproc_structures(preproc_opts, ecmwf, preproc_geoloc, preproc_prtm, preproc_dims, verbose, ecmwf_time_int_fac, date, ind, nwp_flag)
+subroutine ecmwf_for_preproc_structures(preproc_opts, ecmwf, preproc_geoloc, &
+                                        preproc_prtm, preproc_dims, verbose, &
+                                        ecmwf_time_int_fac, date, ind, &
+                                        nwp_flag, nwp_fnames)
    use orac_ncdf_m
    use preproc_constants_m
    use preproc_structures_m
@@ -218,8 +223,13 @@ subroutine ecmwf_for_preproc_structures(preproc_opts, ecmwf, preproc_geoloc, pre
    integer,          intent(in)          :: date, ind
    logical,                 intent(in)    :: verbose
    integer,                intent(in)        :: nwp_flag
+   type(preproc_nwp_fnames_t), intent(inout) :: nwp_fnames
 
 select case (nwp_flag)
+   case(0)
+      if (verbose) write(*,*) 'Reading GFS path: ', trim(preproc_opts%nwp_fnames%nwp_path_file(1))
+      call read_gfs_grib_for_preproc_structures(nwp_fnames%nwp_path_file(1), preproc_dims, preproc_geoloc, &
+           preproc_prtm, verbose, ecmwf, date, ind, nwp_flag)
    case(1)
       if (verbose) write(*,*) 'Reading ECMWF path: ', trim(preproc_opts%nwp_fnames%nwp_path_file(1))
       call ecmwf_nc_for_preproc_structures(preproc_opts, ecmwf, preproc_geoloc, &
