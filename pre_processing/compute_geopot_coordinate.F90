@@ -97,5 +97,99 @@ subroutine compute_geopot_coordinate(preproc_prtm, preproc_dims, ecmwf)
          end if
       end do
    end do
-
 end subroutine compute_geopot_coordinate
+
+subroutine compute_geopot_coordinate_gfs(preproc_prtm, preproc_dims, ecmwf)
+
+   use preproc_constants_m
+   use preproc_structures_m
+
+   implicit none
+
+   type(preproc_prtm_t), intent(inout) :: preproc_prtm
+   type(preproc_dims_t), intent(in)    :: preproc_dims
+   type(ecmwf_t),        intent(inout) :: ecmwf
+
+   integer          :: ii, ij, ik, kp, kdim
+   real(kind=sreal) :: virt_temp, p, pp1, logpp, r_ratio, alpha, sp
+   real(kind=sreal) :: sum_term, add_term, p1, p2, logp1, logp2, logpt
+   real(kind=sreal) :: t1, t2, q1, q2, o1, o2
+
+   r_ratio = r_water_vap / (r_dry_air - 1.0_sreal)
+   kdim = 137
+
+   do ij = 1, preproc_dims%ydim
+      do ii = 1, preproc_dims%xdim
+         if (preproc_prtm%lnsp(ii,ij) .ne. sreal_fill_value) then
+            ! Surface geopotential and surface pressure
+            preproc_prtm%phi_lev(ii,ij,kdim+1) = preproc_prtm%geopot(ii,ij)
+            sp = exp(preproc_prtm%lnsp(ii,ij))
+            pp1 = ecmwf%avec(kdim+1) + ecmwf%bvec(kdim+1)*sp
+
+            ! Loop from top to bottom level
+            do ik = kdim, 1, -1
+               ! Pressure computation
+               p = ecmwf%avec(ik) + ecmwf%bvec(ik)*sp
+               preproc_prtm%pressure(ii,ij,ik) = 0.5 * (p + pp1)
+               print*, preproc_prtm%temperature(ii,ij,ik)
+               ! Interpolation of temperature and spec_hum
+               if (preproc_prtm%pressure(ii,ij,ik) < ecmwf%pressure(ii,ij,1)) then
+                  preproc_prtm%temperature(ii,ij,ik) = ecmwf%temperature(ii,ij,1)
+                  preproc_prtm%spec_hum(ii,ij,ik)    = ecmwf%spec_hum(ii,ij,1)
+                  preproc_prtm%ozone(ii,ij,ik)    = ecmwf%ozone(ii,ij,1)
+               else if (preproc_prtm%pressure(ii,ij,ik) > ecmwf%pressure(ii,ij,41)) then
+                  preproc_prtm%temperature(ii,ij,ik) = ecmwf%temperature(ii,ij,41)
+                  preproc_prtm%spec_hum(ii,ij,ik)    = ecmwf%spec_hum(ii,ij,41)
+                  preproc_prtm%ozone(ii,ij,ik)    = ecmwf%ozone(ii,ij,41)
+               else
+                  do kp = 1, 40
+                     if (preproc_prtm%pressure(ii,ij,ik) >= ecmwf%pressure(ii,ij,kp) .and. preproc_prtm%pressure(ii,ij,ik) <= ecmwf%pressure(ii,ij,kp+1)) then
+                        p1 = ecmwf%pressure(ii,ij,kp)
+                        p2 = ecmwf%pressure(ii,ij,kp+1)
+
+                        logp1 = log(p1)
+                        logp2 = log(p2)
+                        logpt = log(preproc_prtm%pressure(ii,ij,ik))
+
+                        t1 = ecmwf%temperature(ii,ij,kp)
+                        t2 = ecmwf%temperature(ii,ij,kp+1)
+                        q1 = ecmwf%spec_hum(ii,ij,kp)
+                        q2 = ecmwf%spec_hum(ii,ij,kp+1)
+                        o1 = ecmwf%ozone(ii,ij,kp)
+                        o2 = ecmwf%ozone(ii,ij,kp+1)
+
+                        preproc_prtm%temperature(ii,ij,ik) = t1 + (t2 - t1)*(logpt - logp1)/(logp2 - logp1)
+                        preproc_prtm%spec_hum(ii,ij,ik) = q1 + (q2 - q1)*(logpt - logp1)/(logp2 - logp1)
+                        preproc_prtm%ozone(ii,ij,ik) = o1 + (o2 - o1)*(logpt - logp1)/(logp2 - logp1)
+                        exit
+                     end if
+                  end do
+               end if
+
+               ! Geopotential height computation
+               if (p > dither) then
+                  logpp = log(pp1 / p)
+               else
+                  logpp = log(pp1)
+               end if
+
+               virt_temp = preproc_prtm%temperature(ii,ij,ik) * &
+                           (1.0_sreal + r_ratio * preproc_prtm%spec_hum(ii,ij,ik))
+               sum_term = r_dry_air * virt_temp * logpp
+
+               if (ik == 1) then
+                  alpha = log(2.0_sreal)
+               else
+                  alpha = 1.0_sreal - p / (pp1 - p) * logpp
+               end if
+               add_term = alpha * r_dry_air * virt_temp
+
+               preproc_prtm%phi_lev(ii,ij,ik) = preproc_prtm%phi_lev(ii,ij,ik+1) + sum_term
+               preproc_prtm%phi_lay(ii,ij,ik) = preproc_prtm%phi_lev(ii,ij,ik+1) + add_term
+
+               pp1 = p
+            end do
+         end if
+      end do
+   end do
+end subroutine compute_geopot_coordinate_gfs

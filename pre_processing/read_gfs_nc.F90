@@ -42,7 +42,7 @@ subroutine read_gfs_nc(nwp_path, ecmwf, preproc_dims, preproc_geoloc, &
    implicit none
 
    character(len=*),        intent(in)    :: nwp_path
-   type(ecmwf_t),           intent(in)    :: ecmwf
+   type(ecmwf_t),           intent(inout)    :: ecmwf
    type(preproc_dims_t),    intent(in)    :: preproc_dims
    type(preproc_geoloc_t),  intent(in)    :: preproc_geoloc
    type(preproc_prtm_t),    intent(inout) :: preproc_prtm
@@ -225,19 +225,13 @@ subroutine read_gfs_nc(nwp_path, ecmwf, preproc_dims, preproc_geoloc, &
 
    preproc_prtm%phi_lev   = preproc_prtm%phi_lev*g_wmo
 
-   ! GFS provides humidity as relative humidity (%), we need specific humidity
-   ! (kg/kg). This will convert from one to the other.
-   call conv_rh_q(preproc_prtm%spec_hum, preproc_prtm%temperature, &
-                  preproc_prtm%pressure, verbose)
-
    ! GFS has no snow mask, so use snow depth instead. 0.1m threshold arbitrary
    where(preproc_prtm%snow_depth .gt. 0.1) preproc_prtm%snow_albedo = 0.98
 
    deallocate(old_data)
    deallocate(new_data)
 
-   ! Refactor all the GFS levels so that below-surface contributions are removed.
-   call sort_gfs_levels(preproc_prtm, verbose)
+   call interpolate_gfs_levels(preproc_prtm, preproc_dims, ecmwf, nwp_flag, verbose)
 
    call ncdf_close(fid, 'read_gfs_nc()')
 #else
