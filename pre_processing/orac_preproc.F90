@@ -358,7 +358,6 @@ subroutine orac_preproc(mytask, ntasks, lower_bound, upper_bound, driver_path_fi
    use preproc_structures_m
    use read_imager_m
    use rttov_driver_m
-   use rttov_driver_gfs_m
    use setup_m
    use source_attributes_m
    use surface_emissivity_m
@@ -881,7 +880,7 @@ subroutine orac_preproc(mytask, ntasks, lower_bound, upper_bound, driver_path_fi
          end if
       end if
       ! NOAA GFS has limited (pressure) levels and no HR, so set these.
-      if (nwp_flag .eq. 0) preproc_opts%nwp_nlevels = 31
+      if (nwp_flag .eq. 0) preproc_opts%nwp_nlevels = 41
 
       ! read surface wind fields and ECMWF dimensions
       if (preproc_opts%ecmwf_time_int_method .ne. 2) then
@@ -891,7 +890,6 @@ subroutine orac_preproc(mytask, ntasks, lower_bound, upper_bound, driver_path_fi
          call read_ecmwf_wind(nwp_flag, preproc_opts%nwp_fnames, 2, ecmwf2, preproc_opts%nwp_nlevels, date, ind, verbose)
 
          call dup_ecmwf_allocation(ecmwf1, ecmwf)
-
          call linearly_combine_ecmwfs(1.-ecmwf_time_int_fac, &
               ecmwf_time_int_fac, ecmwf1, ecmwf2, ecmwf)
 
@@ -901,10 +899,14 @@ subroutine orac_preproc(mytask, ntasks, lower_bound, upper_bound, driver_path_fi
       
       ! define preprocessing grid from user grid spacing and satellite limits
       if (verbose) write(*,*) 'Define preprocessing grid'
-      if (preproc_opts%use_ecmwf_preproc_grid) then
-         call define_preproc_grid_ecmwf(imager_geolocation, preproc_dims, ecmwf, verbose)
+      if (nwp_flag .eq. 0) then
+         preproc_dims%kdim = 137
       else
          preproc_dims%kdim = ecmwf%kdim
+      endif
+      if (preproc_opts%use_ecmwf_preproc_grid) then
+         call define_preproc_grid_ecmwf(imager_geolocation, preproc_dims, ecmwf, verbose, nwp_flag)
+      else
          call define_preprop_grid(imager_geolocation, preproc_dims, verbose)
 
       end if 
@@ -922,11 +924,11 @@ subroutine orac_preproc(mytask, ntasks, lower_bound, upper_bound, driver_path_fi
       ! read ecmwf era interim file
       if (verbose) write(*,*) 'Read and interpolate NWP / Reanalysis data.'
 
-      if (preproc_opts%use_ecmwf_preproc_grid.and.nwp_flag.gt.0.and.nwp_flag.lt.4) then
+      if (preproc_opts%use_ecmwf_preproc_grid.and.nwp_flag.lt.4) then
          if (verbose) write(*,*) 'Using ECMWF as preproc grid'
          call ecmwf_for_preproc_structures(preproc_opts, ecmwf, preproc_geoloc, &
               preproc_prtm, preproc_dims, verbose, ecmwf_time_int_fac, date, ind, &
-              nwp_flag)
+              nwp_flag, preproc_opts%nwp_fnames)
       else
          if (preproc_opts%ecmwf_time_int_method .ne. 2) then
             call read_ecmwf(nwp_flag, preproc_opts%nwp_fnames, 1, ecmwf, preproc_dims, &
@@ -952,7 +954,7 @@ subroutine orac_preproc(mytask, ntasks, lower_bound, upper_bound, driver_path_fi
       if (verbose) write(*,*) 'Compute geopotential vertical coords'
       ! compute geopotential vertical coordinate from pressure coordinate
       ! First check that we're not processing a GFS file
-      if (nwp_flag .le. 5 .or. nwp_flag .gt. 8) call &
+      if ((nwp_flag .gt. 0 .and. nwp_flag .le. 5) .or. nwp_flag .gt. 8) call &
          compute_geopot_coordinate(preproc_prtm, preproc_dims, ecmwf)
 
       ! read USGS physiography file, including land use and DEM data
@@ -1099,22 +1101,6 @@ subroutine orac_preproc(mytask, ntasks, lower_bound, upper_bound, driver_path_fi
            preproc_opts%use_seviri_ann_mlay, verbose)
 
       ! perform RTTOV calculations
-      if (verbose) write(*,*) 'Perform RTTOV calculations'
-      if (nwp_flag .gt. 5 .and. nwp_flag .le. 8) then
-         call rttov_driver_gfs(rttov_coef_path, rttov_emiss_path, granule, &
-              preproc_dims, preproc_geoloc, preproc_geo, preproc_prtm, &
-              preproc_surf, preproc_cld, netcdf_info, channel_info, &
-              preproc_opts, verbose)
-         ! Call cloud emissivity function
-#ifdef INCLUDE_SATWX
-         if (preproc_opts%do_cloud_emis) then
-            call get_cloud_emis(channel_info, imager_measurements, &
-                  imager_geolocation, preproc_dims, preproc_geoloc, &
-                  preproc_cld, preproc_prtm, imager_cloud, &
-                  granule%sensor, verbose)
-         end if
-#endif
-      else
 #ifdef INCLUDE_SATWX
          if (preproc_opts%do_cloud_emis) call get_trop_tp(preproc_prtm, preproc_dims)
 #endif
@@ -1136,7 +1122,6 @@ subroutine orac_preproc(mytask, ntasks, lower_bound, upper_bound, driver_path_fi
             write(*,*) "ERROR: Cannot compute cloud emissivity and CB locations without SatWx."
 #endif
          end if
-      end if
 
 #ifdef WRAPPER
 
