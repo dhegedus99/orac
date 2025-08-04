@@ -582,7 +582,7 @@ subroutine rttov_driver(coef_path, emiss_path, granule, preproc_dims, &
          else
             opts % rt_all % ozone_data = .true.
          end if
-
+         opts % rt_all % ozone_data = .false.
          ! set gas units to 1, specifying gas input in kg/kg
          profiles(count)%gas_units = 1
 
