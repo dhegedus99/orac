@@ -874,7 +874,7 @@ subroutine orac_preproc(mytask, ntasks, lower_bound, upper_bound, driver_path_fi
          write(*,*) 'Start reading meteorological data file'
          write(*,*) 'nwp_flag: ', nwp_flag
          write(*,*) 'nwp_path_file: ', trim(preproc_opts%nwp_fnames%nwp_path_file(1))
-         if (nwp_flag.gt.0.and.nwp_flag.lt.4) then
+         if (nwp_flag.gt.0.and.nwp_flag.lt.5) then
             write(*,*) 'nwp_path_file2: ', trim(preproc_opts%nwp_fnames%nwp_path_file2(1))
             write(*,*) 'nwp_path_file3: ', trim(preproc_opts%nwp_fnames%nwp_path_file3(1))
          end if
@@ -924,7 +924,7 @@ subroutine orac_preproc(mytask, ntasks, lower_bound, upper_bound, driver_path_fi
       ! read ecmwf era interim file
       if (verbose) write(*,*) 'Read and interpolate NWP / Reanalysis data.'
 
-      if (preproc_opts%use_ecmwf_preproc_grid.and.nwp_flag.lt.4) then
+      if (preproc_opts%use_ecmwf_preproc_grid.and.nwp_flag.lt.6) then
          if (verbose) write(*,*) 'Using ECMWF as preproc grid'
          call ecmwf_for_preproc_structures(preproc_opts, ecmwf, preproc_geoloc, &
               preproc_prtm, preproc_dims, verbose, ecmwf_time_int_fac, date, ind, &

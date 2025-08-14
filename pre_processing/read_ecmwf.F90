@@ -82,8 +82,11 @@ subroutine read_ecmwf_wind(nwp_flag, nwp_fnames, idx, ecmwf, &
       call read_ecmwf_wind_badc(nwp_fnames%nwp_path_file(idx), nwp_fnames%nwp_path_file2(idx), &
            nwp_fnames%nwp_path_file3(idx), ecmwf)
       if (verbose) write(*,*)'ecmwf_dims badc: ', ecmwf%xdim, ecmwf%ydim
+   case(5)
+      call read_ecmwf_wind_nc(ecmwf, nwp_fnames%nwp_path_file(idx), nwp_flag)
+      if (verbose) write(*,*)'ecmwf_dims ncdf: ', ecmwf%xdim, ecmwf%ydim
    case default
-      write(*,*) "Incorrect ECMWF flag, must be between 0-4."
+      write(*,*) "Incorrect ECMWF flag, must be between 0-5."
       stop
    end select
    if (verbose) then
@@ -148,7 +151,7 @@ subroutine read_ecmwf(nwp_flag,nwp_fnames, idx, ecmwf, preproc_dims, &
 
    select case (nwp_flag)
    case(0)
-      if (verbose) write(*,*) 'Reading gfs path: ', trim(nwp_fnames%nwp_path_file(idx))
+      if (verbose) write(*,*) 'Reading GFS path: ', trim(nwp_fnames%nwp_path_file(idx))
       call read_gfs_grib(nwp_fnames%nwp_path_file(idx), preproc_dims, preproc_geoloc, &
            preproc_prtm, ecmwf, nwp_flag, verbose)
    case(1)
@@ -175,6 +178,10 @@ subroutine read_ecmwf(nwp_flag,nwp_fnames, idx, ecmwf, preproc_dims, &
       if (verbose) write(*,*) 'Reading ecmwf path: ', trim(nwp_fnames%nwp_path_file3(idx))
       call read_ecmwf_grib(nwp_fnames%nwp_path_file3(idx), preproc_dims, preproc_geoloc, &
            preproc_prtm, verbose)
+   case(5)
+      if (verbose) write(*,*) 'Reading CAMS path: ', trim(nwp_fnames%nwp_path_file(idx))
+      call read_ecmwf_nc(nwp_fnames%nwp_path_file(idx), ecmwf, preproc_dims, preproc_geoloc, &
+           preproc_prtm, verbose, nwp_flag)
    end select
 
 end subroutine read_ecmwf
@@ -253,7 +260,10 @@ subroutine ecmwf_for_preproc_structures(preproc_opts, ecmwf, preproc_geoloc, &
    case(3)
       if (verbose) write(*,*) 'Reading ecmwf path: ', trim(preproc_opts%nwp_fnames%nwp_path_file(1))
       call ecmwf_nc_for_preproc_structures(preproc_opts, ecmwf, preproc_geoloc, &
-           preproc_prtm, preproc_dims, verbose, ecmwf_time_int_fac, date, ind)
+            preproc_prtm, preproc_dims, verbose, ecmwf_time_int_fac, date, ind)
+   case(5)
+      if (verbose) write(*,*) 'Reading CAMS path: ', trim(preproc_opts%nwp_fnames%nwp_path_file(1))
+      call ecmwf_nc_for_preproc_structures(preproc_opts, ecmwf, preproc_geoloc, &
+            preproc_prtm, preproc_dims, verbose, ecmwf_time_int_fac, date, ind)
    end select
-
 end subroutine ecmwf_for_preproc_structures
