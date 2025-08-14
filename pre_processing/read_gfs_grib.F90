@@ -96,7 +96,7 @@ subroutine read_gfs_grib(ecmwf_file,preproc_dims,preproc_geoloc, &
 
    integer(lint),dimension(41)              :: gfs_levlist
 
- #ifdef INCLUDE_EMOS
+#ifdef INCLUDE_EMOS
    gfs_levlist = (/1,2,4,7,10,20,40,70,100,&
                    200,300,500,700,1000,&
                    1500,2000,3000,4000,5000,7000,10000,&
