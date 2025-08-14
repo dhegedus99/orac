@@ -149,7 +149,6 @@ subroutine define_preproc_grid_ecmwf(imager_geolocation, preproc_dims, ecmwf, ve
    max_lat_ind = minloc(abs(ecmwf%lat - maxval(imager_geolocation%latitude)),1)
 
    ! use ecmwf grid for preproc grid
-   preproc_dims%kdim = ecmwf%kdim
    preproc_dims%xdim = max_lon_ind - min_lon_ind + 1
    preproc_dims%ydim = max_lat_ind - min_lat_ind + 1
    preproc_dims%min_lat = ecmwf%lat(min_lat_ind)
