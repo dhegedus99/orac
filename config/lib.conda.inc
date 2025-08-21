@@ -39,8 +39,8 @@ LIBS += -lnr
 INC  += -DINCLUDE_NR
 
 # Uncomment if LIBEMOS is available for meteorological field interpolation.
-#LIBS += -lemosR64 -lemos
-#INC  += -DINCLUDE_EMOS
+LIBS += -lemosR64 -lemos
+INC  += -DINCLUDE_EMOS
 
 # Uncomment if Fu_Liou support is desired for broadband fluxes.
 LIBS += -lEd3Fu_201212
@@ -56,5 +56,5 @@ INC  += -DINCLUDE_SEVIRI_SUPPORT
 
 # Uncomment if SEVIRI_ML support is desired.
 # Please modify Python -lpython3.X to your Python version.
-#LIBS += -lsevann -lpython3.10
-#INC  += -DINCLUDE_SEVIRI_NEURALNET
+LIBS += -lsevann -lpython3.10
+INC  += -DINCLUDE_SEVIRI_NEURALNET

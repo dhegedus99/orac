@@ -88,7 +88,6 @@ PREPROC_OBJ_F90 = $(OBJS)/aatsr_corrections.o \
                   $(OBJS)/remove_rayleigh.o \
                   $(OBJS)/ross_thick_li_sparse_r.o \
                   $(OBJS)/rttov_driver.o \
-                  $(OBJS)/rttov_driver_gfs.o \
                   $(OBJS)/setup.o \
 		  $(OBJS)/seviri_neural_net_preproc.o \
                   $(OBJS)/solar_position.o \

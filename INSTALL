@@ -1,5 +1,6 @@
 #!/bin/bash
-
+export ORACDIR="$(cd "$(dirname "$0")" && pwd)"
+#export CONDA_PREFIX=/home/ubuntu/miniforge3/envs/orac_git
 cd $ORACDIR
 
 # Make directories
