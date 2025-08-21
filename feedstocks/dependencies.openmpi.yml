@@ -3,7 +3,7 @@
 # platform: linux-64
 name: orac_git
 channels:
- - local
+ - /home/ubuntu/orac_conda_local/conda_channel
  - conda-forge
 dependencies:
  - gcc_linux-64
@@ -32,3 +32,7 @@ dependencies:
  - opencv
  - matplotlib
  - cartopy
+ - xarray
+ - seviri_ml
+ - click
+ - satpy
