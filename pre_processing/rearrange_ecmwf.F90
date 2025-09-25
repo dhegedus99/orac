@@ -45,42 +45,68 @@ subroutine rearrange_ecmwf(ecmwf, date, ind)
    real(kind=sreal), allocatable, dimension(:,:) :: skint, snow_depth
    real(kind=sreal), allocatable, dimension(:,:) :: sea_ice_cover
    real(kind=sreal), allocatable, dimension(:)   :: lon,lat
+   
+   if (any(ecmwf%lon > 180.) .and. any(ecmwf%lon < 180.)) then
+      ! find dateline for global ecmwf file
+      date = 1
+      do while (ecmwf%lon(date) .lt. 180.)
+         date = date + 1
+      end do
+      ind = ecmwf%xdim + 1 - date
 
-   ! find dateline
-   date = 1
-   do while (ecmwf%lon(date) .lt. 180.)
-      date = date + 1
-   end do
-   ind = ecmwf%xdim + 1 - date
+      ! Swap the left and right halfs into a temp array
+      ! Wind fields are not contained in high resolution data
+      allocate(u(ecmwf%xdim,ecmwf%ydim))
+      u(1:ind,:)  = ecmwf%u10(date:,:)
+      u(ind+1:,:) = ecmwf%u10(1:date-1,:)
 
-   ! Swap the left and right halfs into a temp array
-   ! Wind fields are not contained in high resolution data
-   allocate(u(ecmwf%xdim,ecmwf%ydim))
-   u(1:ind,:)  = ecmwf%u10(date:,:)
-   u(ind+1:,:) = ecmwf%u10(1:date-1,:)
+      allocate(v(ecmwf%xdim,ecmwf%ydim))
+      v(1:ind,:)  = ecmwf%v10(date:,:)
+      v(ind+1:,:) = ecmwf%v10(1:date-1,:)
 
-   allocate(v(ecmwf%xdim,ecmwf%ydim))
-   v(1:ind,:)  = ecmwf%v10(date:,:)
-   v(ind+1:,:) = ecmwf%v10(1:date-1,:)
+      allocate(skint(ecmwf%xdim,ecmwf%ydim))
+      skint(1:ind,:)  = ecmwf%skin_temp(date:,:)
+      skint(ind+1:,:) = ecmwf%skin_temp(1:date-1,:)
 
-   allocate(skint(ecmwf%xdim,ecmwf%ydim))
-   skint(1:ind,:)  = ecmwf%skin_temp(date:,:)
-   skint(ind+1:,:) = ecmwf%skin_temp(1:date-1,:)
+      allocate(snow_depth(ecmwf%xdim,ecmwf%ydim))
+      snow_depth(1:ind,:) = ecmwf%snow_depth(date:,:)
+      snow_depth(ind+1:,:)= ecmwf%snow_depth(1:date-1,:)
 
-   allocate(snow_depth(ecmwf%xdim,ecmwf%ydim))
-   snow_depth(1:ind,:) = ecmwf%snow_depth(date:,:)
-   snow_depth(ind+1:,:)= ecmwf%snow_depth(1:date-1,:)
+      allocate(sea_ice_cover(ecmwf%xdim,ecmwf%ydim))
+      sea_ice_cover(1:ind,:)  = ecmwf%sea_ice_cover(date:,:)
+      sea_ice_cover(ind+1:,:) = ecmwf%sea_ice_cover(1:date-1,:)
 
-   allocate(sea_ice_cover(ecmwf%xdim,ecmwf%ydim))
-   sea_ice_cover(1:ind,:)  = ecmwf%sea_ice_cover(date:,:)
-   sea_ice_cover(ind+1:,:) = ecmwf%sea_ice_cover(1:date-1,:)
+      allocate(lon(ecmwf%xdim))
+      allocate(lat(ecmwf%ydim))
+      lon(1:ind)  = ecmwf%lon(date:) - 360.
+      lon(ind+1:) = ecmwf%lon(1:date-1)
 
-   allocate(lon(ecmwf%xdim))
-   allocate(lat(ecmwf%ydim))
-   lon(1:ind)  = ecmwf%lon(date:) - 360.
-   lon(ind+1:) = ecmwf%lon(1:date-1)
+      ecmwf%lon = lon
+   else 
+      ! ECMWF data provided is not global extent
+      allocate(u(ecmwf%xdim,ecmwf%ydim))
+      u  = ecmwf%u10
 
-   ecmwf%lon = lon
+      allocate(v(ecmwf%xdim,ecmwf%ydim))
+      v = ecmwf%v10
+
+      allocate(skint(ecmwf%xdim,ecmwf%ydim))
+      skint  = ecmwf%skin_temp
+
+      allocate(snow_depth(ecmwf%xdim,ecmwf%ydim))
+      snow_depth = ecmwf%snow_depth
+
+      allocate(sea_ice_cover(ecmwf%xdim,ecmwf%ydim))
+      sea_ice_cover  = ecmwf%sea_ice_cover
+
+      allocate(lon(ecmwf%xdim))
+      allocate(lat(ecmwf%ydim))
+      lon  = ecmwf%lon
+
+      ecmwf%lon = lon
+   end if
+
+
 
    ! flip in the y direction from the temp to the original
    do i = 1, ecmwf%ydim
@@ -115,9 +141,12 @@ subroutine rearrange_ecmwf_var2d(ecmwf, dummy2d, date, ind)
    real(sreal) :: dummy2d_new(ecmwf%xdim,ecmwf%ydim)
    integer     :: i
 
-   dummy2d_new(1:ind,:) = dummy2d(date:,:)
-   dummy2d_new(ind+1:,:)= dummy2d(1:date-1,:)
-
+   if (any(ecmwf%lon > 180.) .and. any(ecmwf%lon < 180.)) then
+      dummy2d_new(1:ind,:) = dummy2d(date:,:)
+      dummy2d_new(ind+1:,:)= dummy2d(1:date-1,:)
+   else
+      dummy2d_new= dummy2d
+   end if
    do i = 1, ecmwf%ydim
       dummy2d(:,ecmwf%ydim+1-i) = dummy2d_new(:,i)
    end do
@@ -134,8 +163,12 @@ subroutine rearrange_ecmwf_var3d(ecmwf, dummy3d, date, ind)
    real(sreal) :: dummy3d_new(ecmwf%xdim,ecmwf%ydim, ecmwf%kdim)
    integer     :: i
 
-   dummy3d_new(1:ind,:, :) = dummy3d(date:,:, :)
-   dummy3d_new(ind+1:,:, :)= dummy3d(1:date-1,:, :)
+   if (any(ecmwf%lon > 180.) .and. any(ecmwf%lon < 180.)) then
+      dummy3d_new(1:ind,:, :) = dummy3d(date:,:, :)
+      dummy3d_new(ind+1:,:, :)= dummy3d(1:date-1,:, :)
+   else
+      dummy3d_new= dummy3d
+   end if
 
    do i = 1, ecmwf%ydim
       dummy3d(:,ecmwf%ydim+1-i, :) = dummy3d_new(:,i, :)
