@@ -45,7 +45,7 @@ subroutine interpolate_meteorology(lon,lat,nlev,xdim,ydim, &
    NLon = xdim
 
    Lat0 = real(lat(1,1), kind=8)
-   LatN = real(lat(NLat,1), kind=8)
+   LatN = real(lat(1,NLat), kind=8)
    Lon0 = real(lon(1,1), kind=8)
    LonN = real(lon(NLon,1), kind=8)
 

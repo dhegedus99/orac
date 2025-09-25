@@ -155,6 +155,7 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
    use orac_ncdf_m
    use source_attributes_m
    use system_utils_m
+   use omp_lib
 
    implicit none
 
@@ -261,6 +262,11 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
    integer, allocatable :: aID(:,:) ! Aerosol index for i,jth locations in cloud file
    integer(kind=lint) :: nc_aer
    integer :: aID_vid
+
+   ! OpenMP related variables
+#ifdef _OPENMP
+   integer :: n_threads, thread_num
+#endif
 
    ! Pixel-scale variables
    integer :: pxYear    ! Year
@@ -802,7 +808,7 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
    allocate(dummy1d(ydim_prtm))
    call ncdf_read_array(ncid, "lat_rtm", dummy1d)
    do i = 1, ydim_prtm
-      lat_prtm(i,:) = dummy1d(i)
+      lat_prtm(:,i) = dummy1d(i)
    end do
    deallocate(dummy1d)
 
@@ -972,7 +978,6 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
    ! Top and bottom of BUGSrad profile need to be at the same level as PRTM
    mask_vres(1)=1
    mask_vres(NLS)=levdim_prtm
-   print*, mask_vres
 
 
    !----------------------------------------------------------------------------
@@ -1145,16 +1150,60 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
    print*, 'Across Track # = ', pxX1 - pxX0 + 2
    print*, 'Along Track #  = ', pxY1 - pxY0 + 1
 
+#ifdef _OPENMP
+   ! Along track loop is parallelized with OpenMP
+   n_threads = omp_get_max_threads()
+   if (verbose) &
+        write(*,*) 'ORAC along-track loop now running on', n_threads, 'threads'
+
+   ! Start OMP section by spawning the threads
+   !$OMP PARALLEL &
+   !$OMP PRIVATE(i,j,thread_num) &
+   !$OMP PRIVATE(pxTheta, pxts, tmpVal, nanFlag, ml_flag, pxregime, &
+   !$OMP pxREF, pxCOT, pxHctop, pxHcbase, pxPhaseFlag, pxHctopID, pxHcbaseID, &
+   !$OMP tmp_pxREF, tmp_pxCOT, tmp_pxHctop, tmp_pxHcbase, tmp_pxPhaseFlag, tmp_pxHctopID, tmp_pxHcbaseID, &
+   !$OMP pxZ, pxP, pxT, pxQ, pxO3, rho_0d_bugsrad, rho_dd_bugsrad, emis_bugsrad, &
+   !$OMP rho_0d_fuliou, rho_dd_fuliou, emis_fuliou, pxtoalwup, pxtoaswup, pxtoalwupclr, pxtoaswupclr, &
+   !$OMP pxtoaswdn, pxboalwup, pxboalwdn, pxboaswup, pxboaswdn, pxboalwupclr, pxboalwdnclr, pxboaswupclr, pxboaswdnclr, &
+   !$OMP pxboaswdndif, bpar, bpardif, tpar, pxLTS, pxFTH, pxcolO3, &
+   !$OMP inO3, inQ, inH, inP, inT_) &
+   !$OMP SHARED(time_data, lat_data, lon_data, &
+   !$OMP   pxX0, pxX1, pxY0, pxY1,  surface_to_process, &
+   !$OMP   TIME, LAT, LON, LSFLAG, STEMP, &
+   !$OMP   rho_0d, rho_dd, emis_data, &
+   !$OMP   cc_tot, cc_tot2, AREF, AOD550, phase, CTT, CTP, REF, COT, CTH, &
+   !$OMP   CTT2, CTP2, REF2, COT2, CTH2, &
+   !$OMP   InfThnCld,  mask_vres, &
+   !$OMP   lon_prtm, lat_prtm, levdim_prtm, xdim_prtm, ydim_prtm, P, T, H, Q, O3, &
+   !$OMP   algorithm_processing_mode, lut_mode, multi_layer, &
+   !$OMP   nc_alb, nc_emis, &
+   !$OMP   LUT_SFC_ALB, lut_ref, lut_cot, lut_solz, LUT_toa_sw_albedo, LUT_boa_sw_transmission, LUT_boa_sw_albedo, &
+   !$OMP   alb_data, SOLZ, nsolz, ntau, nre, nasfc, &
+   !$OMP   surft, retrflag, toa_lwup, toa_swup, toa_swdn, &
+   !$OMP   boa_lwup, boa_lwdn, boa_swup, boa_swdn, boa_swdndif, &
+   !$OMP   toa_lwup_clr, toa_swup_clr, boa_lwup_clr, boa_lwdn_clr, boa_swup_clr, boa_swdn_clr, &
+   !$OMP   toa_par_tot, boa_par_tot, boa_par_dif, cbh, &
+   !$OMP   boa_tsfc, boa_psfc, boa_qsfc, lts, fth, colO3 )
+
+   thread_num = omp_get_thread_num()
+   !$OMP CRITICAL
+   if (verbose) write(*,*) 'Thread ', thread_num+1, 'is active'
+   !$OMP END CRITICAL
+#endif
+
+   !$OMP DO SCHEDULE(GUIDED)
    ! loop over cross-track dimension
    do i = pxX0, pxX1
       call cpu_time(cpuFinish)
       if (mod(i, 50) .eq. 0) then
+         !$OMP CRITICAL
          print*, 'complete: ', i*100./(xN*1.), &
               '%   i=', i, cpuFinish-cpuStart,' seconds elapsed'
+         !$OMP END CRITICAL
       end if
 
       ! loop over along-track dimension
-      do j = pxY0, pxY1         
+      do j = pxY0, pxY1   
          ! Valid lat/lon required to run (needed for SEVIRI)
          if (LAT(i,j) .ne. -999.0 .and. LON(i,j) .ne. -999.0) then
             if (surface_to_process .ne. 2 .and. LSFLAG(i,j) .ne. surface_to_process) then
@@ -1253,9 +1302,6 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
                   if (cot2(i,j) .gt. 0) then
                      ! ML code has -999. for CTP but CTH exists see correction below
                      if (CTP2(i,j) .LT. 0. .AND. CTH2(i,j) .GT. 0.) then
-                        print*, CTP2(i,j), CTH2(i,j)
-                        print*,(pxP(MINLOC(ABS(CTH2(i,j)-pxZ)))+ &
-                             pxP(MINLOC(ABS(CTH2(i,j)-pxZ))+1))/2.
                         ! poor man's interpolation method but gets close...
                         tmpVal = (pxP( MINLOC(ABS(CTH2(i,j)-pxZ)) )+ &
                              pxP( MINLOC(ABS(CTH2(i,j)-pxZ))+1))/2.
@@ -1268,7 +1314,6 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
                           NLS, pxZ, tmp_pxREF, tmp_pxCOT, tmp_pxHctop, tmp_pxHcbase,&
                           tmp_pxPhaseFlag, pxLayerType,&
                           pxregime, tmp_pxHctopID, tmp_pxHcbaseID)
-                  
                      pxREF(2)       = tmp_pxREF
                      pxCOT(2)       = tmp_pxCOT
                      pxHctop(2)     = tmp_pxHctop
@@ -1284,7 +1329,7 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
 
                ! Run full radiation code (not LUT mode)
                if (lut_mode .eq. 0) then
-
+                  !$OMP CRITICAL
                   !----------------------------------------------------------------
                   ! Call BUGSrad algorithm
                   !----------------------------------------------------------------
@@ -1304,7 +1349,7 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
                              emis_bugsrad, rho_0d_bugsrad, rho_dd_bugsrad, pxYEAR,&
                              pxboaswdndif)
                   end if ! BUGSrad algorithm
-
+                  !$OMP END CRITICAL
                   !----------------------------------------------------------------
                   ! Call FuLiou algorithm
                   !----------------------------------------------------------------
@@ -1411,7 +1456,8 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
          end if ! valid geolocation data
       end do ! j-loop
    end do ! i-loop
-
+   !$OMP END DO
+   !$OMP END PARALLEL
    call cpu_time(cpuFinish)
    print*, cpuFinish-cpuStart,' seconds elapsed'
 
