@@ -10,9 +10,10 @@ from pyorac import defaults
 from pyorac.util import call_exe
 
 CLOBBER = OrderedDict([
-    ('pre', 3),
-    ('main', 2),
-    ('post', 1),
+    ('pre', 4),
+    ('main', 3),
+    ('post', 2),
+    ('flux', 1),
 ])
 
 
@@ -133,6 +134,60 @@ def process_post(args, log_path, files=None, dependency=None, tag='post'):
         exe = os.path.join(args.orac_dir, 'post_processing', 'orac_postproc')
         if not os.path.isfile(exe):
             exe = os.path.join(args.orac_dir, 'orac_postproc')
+        jid = call_exe(args, exe, driver, values)
+
+    else:
+        jid = None
+
+    return jid, out_file
+
+
+def process_flux(args, log_path, files=None, dependency=None, tag='flux'):
+    """Call sequence for post processor"""
+    from pyorac.drivers import build_flux_driver
+
+    args = oracarg.check_args_flux(args)
+    job_name = args.File.job_name(args.revision, tag)
+    root_name = args.File.root_name(args.revision)
+
+    if not os.path.isdir(args.out_dir):
+        os.makedirs(args.out_dir, defaults.DIR_PERMISSIONS)
+
+    if files is None:
+        # Find all primary files of requested phases in given input folders.
+        files = []
+        files.extend(glob(os.path.join(
+                    args.in_dir, root_name + '.' + types + '.nc'
+        )))
+        for types in set('prtm', 'alb'):
+            files.extend(glob(os.path.join(
+                    args.pre_dir, root_name + '.' + types + '.nc'
+            )))
+
+    if len(files) < 3:
+        raise defin.FileMissing('sufficient processed files', args.target)
+
+    out_file = os.path.join(
+        args.out_dir, '.'.join(filter(
+            None, (root_name, 'bugsrad', 'nc')
+        ))
+    )
+    if args.clobber >= CLOBBER['flux'] or not os.path.isfile(out_file):
+        # Settings for batch processing
+        values = {'job_name': job_name,
+                  'log_file': os.path.join(log_path, job_name + '.log'),
+                  'err_file': os.path.join(log_path, job_name + '.err'),
+                  'duration': args.dur[3],
+                  'ram': args.ram[3]}
+        if dependency is not None:
+            values['depend'] = dependency
+
+        args.target = out_file
+        driver = build_flux_driver(args, files)
+        exe = os.path.join(args.orac_dir, 'derived_products/broadband_fluxes', 'process_broadband_fluxes')
+        if not os.path.isfile(exe):
+            exe = os.path.join(args.orac_dir, 'process_broadband_fluxes')
+        print(exe, driver)
         jid = call_exe(args, exe, driver, values)
 
     else:

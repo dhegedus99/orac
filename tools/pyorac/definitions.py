@@ -520,7 +520,7 @@ class FileName:
     def ncdf_sad_platform(self):
         """Platform name using the formatting of the NCDF LUTs"""
         if self.platform.startswith("MSG"):
-            return "meteosat-{:d}".format(int(self.platform[4:]) + 7)
+            return "meteosat-{:d}".format(int(self.platform[4:]) + 8)
         if self.platform.startswith("FY"):
             return "fengyun-" + self.platform[3:].lower()
         return self.platform.lower()

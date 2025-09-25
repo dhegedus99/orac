@@ -54,13 +54,13 @@ def build_preproc_driver(args):
                                 'SW_SFC_PRMS_%m.nc', 'years')
         brdf = None
     else:
-        for ver in (61, 6, 5):
+        for ver in (6,5):#61, 6, 5):
             try:
                 alb = _date_back_search(args.mcd43c3_dir, args.File.time,
-                                        f'MCD43C3.A%Y%j.{ver:03d}.*.hdf', 'days')
+                                        f'%Y/MCD43C3.A%Y%j.{ver:03d}.*.hdf', 'days')
                 brdf = None if args.lambertian else _date_back_search(
                     args.mcd43c1_dir, args.File.time,
-                    f'MCD43C1.A%Y%j.{ver:03d}.*.hdf', 'days'
+                    f'%Y/MCD43C1.A%Y%j.{ver:03d}.*.hdf', 'days'
                 )
                 break
             except FileMissing:
@@ -96,11 +96,12 @@ def build_preproc_driver(args):
         raise NotImplementedError('Filename syntax for --nwp_flag 3 unknown')
     elif args.nwp_flag == 1:
         ecmwf_nlevels = 137
-        for form, ec_hour in (('C3D*%m%d%H*.nc', 3),
-                              ('ECMWF_OPER_%Y%m%d_%H+00.nc', 6),
-                              ('ECMWF_ERA5_%Y%m%d_%H_0.5.nc', 6),
-                              ('ECMWF_ERA_%Y%m%d_%H_0.5.nc', 6),
-                              ('ECMWF_ERA_%Y%m%d_%H+00_0.5.nc', 6)):
+        for form, ec_hour in (('%Y/%m/%d/C1D*%m%d%H*.nc', 3),
+                              ('%Y/%m/%d/C3D*%m%d%H*.nc', 3),
+                              ('%Y/%m/%d/ECMWF_OPER_%Y%m%d_%H+00.nc', 6),
+                              ('%Y/%m/%d/ECMWF_ERA5_%Y%m%d_%H_0.5.nc', 6),
+                              ('%Y/%m/%d/ECMWF_ERA_%Y%m%d_%H_0.5.nc', 6),
+                              ('%Y/%m/%d/ECMWF_ERA_%Y%m%d_%H+00_0.5.nc', 6)):
             try:
                 bounds = _bound_time(args.File.time + args.File.dur // 2, ec_hour)
                 ggam = _form_bound_filenames(bounds, args.ecmwf_dir, form)
@@ -321,6 +322,13 @@ EXT_GEO_PATH={args.pregeo_file}"""
 
     if args.product_name is not None:
         driver += f"\nPRODUCT_NAME={args.product_name}"
+        
+    
+    if args.USE_SEVIRI_ANN_CMA_CPH:
+        driver += "\nUSE_SEVIRI_ANN_CMA_CPH=True"
+
+    if args.USE_ECMWF_PREPROC_GRID:
+        driver += "\nUSE_ECMWF_PREPROC_GRID=True"
 
     return driver
 
@@ -487,6 +495,41 @@ USE_BAYESIAN_SELECTION={bayesian}""".format(
     return driver
 
 
+def build_flux_driver(args, files):
+    """Prepare a driver file for the flux calculations."""
+    
+    if not args.flux_limit:
+        args.flux_limit = [0,0,0,0]
+        
+    # Form driver file
+    driver = """{pri} {prtm} {alb} {tsi} {out_flux} {rad_alg} {x0} {y0} {x1} {y1}""".format(
+        pri=files[0],
+        prtm=files[1],
+        alb=files[2],
+        tsi=args.tsi,
+        out_flux=args.target,
+        rad_alg=args.rad_alg,
+        x0=args.flux_limit[0],
+        y0=args.flux_limit[1],
+        x1=args.flux_limit[2],
+        y1=args.flux_limit[3],
+    )
+    
+    if args.cci_aer:
+        driver += " cci_aerosol="+args.cci_aer
+    elif args.collocation:
+        driver += " cci_collocation="+args.collocation
+    elif args.modis_aer:
+        driver += " modis_aerosol="+args.modis_aer
+    elif args.modis_cl:
+        driver += " modis_cloud="+args.modis_cl
+    if args.luts:
+        driver += " LUT_mode="+args.luts
+    print(driver)
+    return driver
+
+
+
 # -----------------------------------------------------------------------------
 
 def _bound_time(date=None, delta_hours=6):
@@ -525,10 +568,9 @@ def _date_back_search(fdr, date_in, pattern, interval):
     :str pattern: strftime format string used to parse filename.
     :str interval: Keyword of relativedelta indicating interval to step back.
     """
-
+    
     # Step forward one day, month, or year
     delta = relativedelta(**{interval: 1})
-
     date = copy(date_in)
     # We only want to look back so far, depending on the interval
     if interval == 'days':
@@ -541,17 +583,16 @@ def _date_back_search(fdr, date_in, pattern, interval):
     while date > earliest:
         # Look for a file with the appropriate date
         files = glob(date.strftime(os.path.join(fdr, pattern)))
-
         if len(files) >= 1:
             return files[-1]
         else:
             date -= delta
-
     # If we fail, try to find a climatological file
     if 'XXXX' not in pattern:
         return _date_back_search(fdr.replace('%Y', 'XXXX'), date_in,
                                  pattern.replace('%Y', 'XXXX'), 'days')
     else:
+        print('here2')
         raise FileMissing(fdr, pattern)
 
 

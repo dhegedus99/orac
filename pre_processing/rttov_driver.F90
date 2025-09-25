@@ -944,8 +944,8 @@ subroutine rttov_driver(coef_path, emiss_path, granule, preproc_dims, &
          if (verbose) write(*,*) 'Deallocate structures'
 
          call rttov_deallocate_emis_atlas(emis_atlas)
-         call rttov_alloc_traj(stat, 1, nchan, opts, nlevels, coefs, DEALLOC, &
-              traj)
+         !call rttov_alloc_traj(stat, 1, nchan, opts, nlevels, coefs, DEALLOC, &
+         !     traj)
          call rttov_alloc_transmission(stat, transmission, nlevels, nchan, &
               DEALLOC)
          call rttov_alloc_rad(stat, nchan, radiance, nlevels, DEALLOC, &

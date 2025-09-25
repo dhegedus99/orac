@@ -100,6 +100,11 @@ def args_preproc(parser):
                      help='Skip the Pavolonis cloud typing.')
     key.add_argument('--swansea', action='store_true',
                      help='Use the Swansea climatology instead of MODIS BRDF.')
+    key.add_argument('--USE_SEVIRI_ANN_CMA_CPH', action='store_true',
+                     help = 'Use ML code for cloudmask and cloudphase')     
+    key.add_argument('--USE_ECMWF_PREPROC_GRID', action='store_true',
+                     help = 'Use native ECMWF grid for preprocessing')   
+                     
     emis = key.add_mutually_exclusive_group()
     emis.add_argument('--use_modis_emis', action='store_true',
                       help='Use MODIS surface emissivity rather than RTTOV.')
@@ -201,6 +206,41 @@ def args_postproc(parser):
                       help='With cloud processing, do not check if CTT is '
                            'appropriate for the selected type. Only relevant '
                            'when processing exclusively water and ice cloud.')
+
+
+def args_flux(parser):
+    """Define arguments for postprocessor script."""
+
+    flux = parser.add_argument_group('Flux paths')
+    flux.add_argument('--tsi', type=str, nargs='?', metavar='PATH',
+                     default=defaults.AUXILIARIES['tsi_file'],
+                     help='Name and path of TSI file.')
+    flux.add_argument('--pre_dir', type=str, nargs='?', metavar='DIR',
+                     default=defaults.PRE_DIR,
+                     help='Directory of the orac preproc output.')
+    flux.add_argument('--flux_limit', type=int, nargs=4, default=(0, 0, 0, 0),
+                     metavar=('X0', 'Y0', 'X1', 'Y1'),
+                     help='First/last pixel in PRIMARY FILE EXTENT,'
+                           'NOT the same as --limit')
+    flux.add_argument('--rad_alg', type=int, nargs='?',
+                      default=1, metavar='VALUE',
+                      help='Radiation Algorithm (BUGSrad=1; FuLiou-2Stream Modified Gamma=2;'
+                           'FuLiou-4stream=3; FuLiou-2Stream=4)')
+    flux.add_argument('--cci_aer', type=str, nargs='?', metavar='PATH',
+                     default=None,
+                     help='Name and path of cci aerosol file, accepts v3.02 or v4.01 types.')
+    flux.add_argument('--collocation', type=str, nargs='?', metavar='PATH',
+                     default=None,
+                     help='Name and path of cci collocation file.')
+    flux.add_argument('--modis_aer', type=str, nargs='?', metavar='PATH',
+                     default=None,
+                     help='Name and path of modis aerosol file, accepts MOD04 or MYD04 COLLECTION 6.')
+    flux.add_argument('--modis_cl', type=str, nargs='?', metavar='PATH',
+                     default=None,
+                     help='Name and path of modis cloud file, accepts MOD06 or MYD06 COLLECTION 6.')
+    flux.add_argument('--luts', type=str, nargs='?', metavar='PATH',
+                     default=None,
+                     help='Name and path of LUT file.')
 
 
 def args_cc4cl(parser):
@@ -399,6 +439,39 @@ def check_args_postproc(args):
         if not os.path.isdir(fdr):
             raise FileMissing('Processed output directory', fdr)
 
+    return args
+    
+def check_args_fluxes(args):
+    """Ensure flux parser arguments are valid."""
+    ### TO DO
+    for fdr in args.in_dir:
+        if not os.path.isdir(fdr):
+            raise FileMissing('Processed output directory', fdr)
+    
+    if not args.flux_limit:
+        raise OracWarning('Missing limits for fluxes')
+        
+    if not os.path.isdir(arg.tsi):
+            raise FileMissing('Processed output directory', arg.tsi)
+    
+    print(args.rad_alg)
+    
+    if args.cci_aer:
+        if not os.path.isdir(args.cci_aer):
+            raise FileMissing('Processed output directory', args.cci_aer)
+    elif args.collocation:
+        if not os.path.isdir(args.collocation):
+            raise FileMissing('Processed output directory', args.collocation)
+    elif args.modis_aer:
+        if not os.path.isdir(args.modis_aer):
+            raise FileMissing('Processed output directory', args.modis_aer)
+    elif args.modis_cl:
+        if not os.path.isdir(args.modis_cl):
+            raise FileMissing('Processed output directory', args.modis_cl)
+    if args.luts:
+        if not os.path.isdir(args.luts):
+            raise FileMissing('Processed output directory', args.luts)
+    
     return args
 
 

@@ -39,10 +39,10 @@ args = pars.parse_args()
 args = check_args_common(args)
 args = check_args_cc4cl(args)
 log_path = os.path.join(args.out_dir, LOG_DIR)
-
+print(args)
 try:
     inst = FileName(args.in_dir, args.target)
-
+    print(inst.oractype)
     if inst.oractype in ('primary', 'secondary'):
         jid, _ = process_post(args, log_path)
 
