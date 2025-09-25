@@ -1,6 +1,6 @@
 # Base directory for all libraries and include files taken from the
 # environmental variable CONDA_PREFIX.
-CONDA_PREFIX=/home/users/dhegedus/miniconda3/envs/orac_git
+CONDA_PREFIX=/home/users/dhegedus/miniforge3/envs/orac_git
 
 # Set up libraries and includes
 LIBS = -L$(CONDA_PREFIX)/lib \
@@ -27,7 +27,7 @@ CINC = -I./ \
 # Configuration options
 
 # Uncomment if you want to enable OpenMP for RTTOV computations.
-INC  += -DINCLUDE_RTTOV_OPENMP
+#INC  += -DINCLUDE_RTTOV_OPENMP
 
 # Uncomment if ATSR support is desired.
 LIBS += -lepr_api
