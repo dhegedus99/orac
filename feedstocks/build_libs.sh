@@ -15,66 +15,69 @@ export RTTOV_FILES="$3"
 FEED_DIR="$ORAC_DIR/feedstocks"
 
 # Download, install and start Miniforge
-TMPDIR=$(mktemp -d)
-pushd $TMPDIR
-wget "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-$(uname)-$(uname -m).sh"
-chmod 0700 "Miniforge-$(uname)-$(uname -m).sh"
-./Miniforge-Linux-x86_64.sh -b -p "$ROOT_PREFIX"
+#TMPDIR=$(mktemp -d)
+#pushd $TMPDIR
+#wget "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-$(uname)-$(uname -m).sh"
+#chmod 0700 "Miniforge3-$(uname)-$(uname -m).sh"
+bash $HOME/Miniforge3-Linux-x86_64.sh -b -p "$ROOT_PREFIX"
 . "$ROOT_PREFIX"/etc/profile.d/conda.sh
-popd
-rm -rf $TMPDIR
+#popd
+#rm -rf $TMPDIR
 conda activate
-conda update -y --all
+#conda update -y --all
 
 # Ensure the local directory is searched in the path
 export PATH=$PATH:.
 
 # Install the building tools
 conda install -y mamba
-mamba install -y boa conda-verify
+#mamba install -y boa conda-verify
+
 
 # Packages without dependencies
-conda mambabuild --no-anaconda-upload "$FEED_DIR/nr"
+conda build --solver=libmamba --no-anaconda-upload "$FEED_DIR/nr"
 #conda mambabuild --no-anaconda-upload "$FEED_DIR/fftw"
 #conda mambabuild --no-anaconda-upload "$FEED_DIR/libaec"
-conda mambabuild --no-anaconda-upload "$FEED_DIR/epr_api"
-conda mambabuild --no-anaconda-upload "$FEED_DIR/fu_liou"
+conda build --solver=libmamba --no-anaconda-upload "$FEED_DIR/epr_api"
+conda build --solver=libmamba --no-anaconda-upload "$FEED_DIR/fu_liou"
 
 # NOTE: We have to build this because the conda-forge repo contains the
 # shared libraries, which can't be built at the same time as the Fortran ones
 # we use. I've offered a PR to fix that
-conda mambabuild --no-anaconda-upload "$FEED_DIR/hdf4"
+conda build --solver=libmamba --no-anaconda-upload "$FEED_DIR/hdf4"
 # NOTE: We have to build this as the conda-forge version doesn't contain
 # Fortran-friendly function names
-conda mambabuild --no-anaconda-upload "$FEED_DIR/hdfeos2"
+conda build --solver=libmamba --no-anaconda-upload "$FEED_DIR/hdfeos2"
 
 #conda mambabuild --no-anaconda-upload "$FEED_DIR/hdf5"
 #conda mambabuild --no-anaconda-upload "$FEED_DIR/libnetcdf"
 #conda mambabuild --no-anaconda-upload "$FEED_DIR/netcdf-fortran"
 #conda mambabuild --no-anaconda-upload "$FEED_DIR/eccodes"
 
-conda mambabuild --no-anaconda-upload "$FEED_DIR/seviri_util"
-conda mambabuild --no-anaconda-upload "$FEED_DIR/hsd_reader"
-conda mambabuild --no-anaconda-upload "$FEED_DIR/seviri_ml"
+conda build --solver=libmamba --no-anaconda-upload "$FEED_DIR/seviri_util"
+conda build --solver=libmamba --no-anaconda-upload "$FEED_DIR/hsd_reader"
+conda build --solver=libmamba --no-anaconda-upload "$FEED_DIR/seviri_ml"
 
-conda mambabuild --no-anaconda-upload "$FEED_DIR/libemos"
+conda build --solver=libmamba --no-anaconda-upload "$FEED_DIR/libemos"
 
 # Requires the RTTOV_FILE variable to be exported
-conda mambabuild --no-anaconda-upload "$FEED_DIR/rttov"
+conda build --solver=libmamba --no-anaconda-upload "$FEED_DIR/rttov"
 
-conda mambabuild --no-anaconda-upload "$FEED_DIR/orac"
-conda mambabuild --no-anaconda-upload "$FEED_DIR/pyorac"
+conda build --solver=libmamba --no-anaconda-upload "$FEED_DIR/orac"
+conda build --solver=libmamba --no-anaconda-upload "$FEED_DIR/pyorac"
 
 # Install the release version of ORAC
 conda create -y --override-channels -c local -c conda-forge \
       -n orac_release orac pyorac python=3.8
+#mamba create -n orac_release -c local -c conda-forge orac pyorac python=3.8
 
 cp "$ORAC_DIR/tools/pyorac/local_defaults.py" \
    "$ROOT_PREFIX/envs/orac_release/lib/python3.8/site-packages/pyorac/"
 
 # Create an environment suitable for ORAC
 conda create -y --override-channels -c local -c conda-forge \
-      -n orac_git --file "$FEED_DIR/dependencies.nompi.txt" python=3.8
+      -n orac_git --file "$FEED_DIR/dependencies.openmpi.txt" python=3.8
+#mamba create -n orac_git -c local -c conda-forge --file feedstocks/dependencies.openmpi.txt python=3.8 --no-pinned
 
 SCRIPT_DIR="$ROOT_PREFIX/envs/orac_git/etc/conda"
 for CHANGE in "activate" "deactivate"; do
