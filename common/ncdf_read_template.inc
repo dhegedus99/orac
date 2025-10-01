@@ -394,6 +394,72 @@ subroutine NCDF_READ_NAME_6D(ncid, name, val, dim, ind, start)
 
 end subroutine NCDF_READ_NAME_6D
 
+subroutine NCDF_READ_NAME_7D(ncid, name, val, dim, ind, start)
+   implicit none
+
+   integer,                                     intent(in)    :: ncid
+   character(len=*),                            intent(in)    :: name
+   NCDF_READ_TYPE(kind=NCDF_READ_KIND), target, intent(inout) :: val(:,:,:,:,:,:,:)
+   integer, optional,                           intent(in)    :: dim, ind(:)
+   integer, optional,                           intent(in)    :: start(:)
+
+   integer                                      :: ierr, vid, i
+   integer, dimension(7)                        :: start_pos, counter, stride
+   logical                                      :: fv_flag, vr_flag
+#ifdef DEBUG
+   character(len=unitlength)                    :: unit
+#endif
+   NCDF_READ_TYPE(kind=NCDF_READ_KIND)          :: fv, sf, of, vmin, vmax
+   NCDF_READ_TYPE(kind=NCDF_READ_KIND), pointer :: arr(:,:,:,:,:,:,:)
+   NCDF_READ_TYPE(kind=NCDF_READ_KIND)          :: fill=NCDF_READ_FILL_VALUE
+
+   start_pos = 1
+   counter(1) = size(val,1)
+   counter(2) = size(val,2)
+   counter(3) = size(val,3)
+   counter(4) = size(val,4)
+   counter(5) = size(val,5)
+   counter(6) = size(val,6)
+   counter(7) = size(val,7)
+   stride = 1
+
+   if (present(start)) then
+      start_pos = start
+   end if
+
+#include "ncdf_open_field.inc"
+
+   if (present(dim)) then
+      ! only read some channels from the array
+      counter(dim) = 1
+      do i = 1, size(ind)
+         select case (dim)
+         case(1)
+            arr => val(i:i,:,:,:,:,:,:)
+         case(2)
+            arr => val(:,i:i,:,:,:,:,:)
+         case(3)
+            arr => val(:,:,i:i,:,:,:,:)
+         case(4)
+            arr => val(:,:,:,i:i,:,:,:)
+         case(5)
+            arr => val(:,:,:,:,i:i,:,:)
+         case(6)
+            arr => val(:,:,:,:,:,i:i,:)
+         case(7)
+            arr => val(:,:,:,:,:,:,i:i)
+         end select
+
+         start_pos(dim) = ind(i)
+#include "ncdf_read_field.inc"
+      end do
+   else
+      ! read everything
+      arr => val
+#include "ncdf_read_field.inc"
+   end if
+
+end subroutine NCDF_READ_NAME_7D
 
 #ifdef NCDF_RD_P_TYPE
 
