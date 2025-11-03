@@ -1095,8 +1095,8 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
       ! Fill arrays
       do i = 1, xN
          do j = 1, yN
-            AOD550(i,j) = -999.
-            AREF(i,j) = -999.
+            AOD550(i,j) = sreal_fill_value
+            AREF(i,j) = sreal_fill_value
          end do
       end do
    end if
@@ -1205,7 +1205,7 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
       ! loop over along-track dimension
       do j = pxY0, pxY1   
          ! Valid lat/lon required to run (needed for SEVIRI)
-         if (LAT(i,j) .ne. -999.0 .and. LON(i,j) .ne. -999.0) then
+         if (LAT(i,j) .ne. sreal_fill_value .and. LON(i,j) .ne. sreal_fill_value) then
             if (surface_to_process .ne. 2 .and. LSFLAG(i,j) .ne. surface_to_process) then
                time_data(i,j) = TIME(i,j)
                lat_data(i,j)  = LAT(i,j)
@@ -1273,13 +1273,13 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
                surft(i,j) = pxts      
 
                ! Cloud base & top height calculation
-               pxREF(:)       = -999.
-               pxCOT(:)       = -999.
-               pxHctop(:)     = -999.
-               pxHcbase(:)    = -999.
-               pxPhaseFlag(:) = -999.
-               pxHctopID(:)   = -999.
-               pxHcbaseID(:)  = -999.
+               pxREF(:)       = sreal_fill_value
+               pxCOT(:)       = sreal_fill_value
+               pxHctop(:)     = sreal_fill_value
+               pxHcbase(:)    = sreal_fill_value
+               pxPhaseFlag(:) = sreal_fill_value
+               pxHctopID(:)   = sreal_fill_value
+               pxHcbaseID(:)  = sreal_fill_value
 
                ml_flag = 1
                ! cloud base & top height calculation
