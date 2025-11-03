@@ -158,8 +158,8 @@ subroutine read_predef_file_sev(path_to_file, usgs, verbose)
    call ncdf_open(fid, path_to_file, 'read_predef_file_sev()')
 
    ! Extract the array dimensions
-   usgs%nlon = ncdf_dim_length(fid, 'x', 'read_USGS_file()')
-   usgs%nlat = ncdf_dim_length(fid, 'y', 'read_USGS_file()')
+   usgs%nlat = ncdf_dim_length(fid, 'x', 'read_USGS_file()')
+   usgs%nlon = ncdf_dim_length(fid, 'y', 'read_USGS_file()')
 
    ! Read data for each variable
    allocate(usgs%dem(usgs%nlon, usgs%nlat))

@@ -79,6 +79,8 @@ subroutine get_USGS_data(path_to_USGS_file, imager_flags, imager_geolocation, &
               imager_geolocation%starty:imager_geolocation%endy)
          imager_flags%lusflag   = usgs%lus(imager_geolocation%startx:imager_geolocation%endx, &
               imager_geolocation%starty:imager_geolocation%endy)
+         imager_flags%lsflag   = usgs%lsm(imager_geolocation%startx:imager_geolocation%endx, &
+              imager_geolocation%starty:imager_geolocation%endy)
       else if (index(sensor, "AHI") .gt. 0) then
          call read_predef_file_ahi(path_to_USGS_file, usgs, imager_geolocation, verbose)
          imager_geolocation%dem = usgs%dem(:,:)
