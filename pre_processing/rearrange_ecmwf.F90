@@ -83,6 +83,8 @@ subroutine rearrange_ecmwf(ecmwf, date, ind)
 
       ecmwf%lon = lon
    else 
+      date = -999
+      ind = -999
       ! ECMWF data provided is not global extent
       allocate(u(ecmwf%xdim,ecmwf%ydim))
       u  = ecmwf%u10
@@ -141,11 +143,11 @@ subroutine rearrange_ecmwf_var2d(ecmwf, dummy2d, date, ind)
    real(sreal) :: dummy2d_new(ecmwf%xdim,ecmwf%ydim)
    integer     :: i
 
-   if (any(ecmwf%lon > 180.) .and. any(ecmwf%lon < 180.)) then
+   if ((date .eq. -999) .and. (ind .eq. -999)) then
+      dummy2d_new= dummy2d
+   else
       dummy2d_new(1:ind,:) = dummy2d(date:,:)
       dummy2d_new(ind+1:,:)= dummy2d(1:date-1,:)
-   else
-      dummy2d_new= dummy2d
    end if
    do i = 1, ecmwf%ydim
       dummy2d(:,ecmwf%ydim+1-i) = dummy2d_new(:,i)
@@ -163,11 +165,11 @@ subroutine rearrange_ecmwf_var3d(ecmwf, dummy3d, date, ind)
    real(sreal) :: dummy3d_new(ecmwf%xdim,ecmwf%ydim, ecmwf%kdim)
    integer     :: i
 
-   if (any(ecmwf%lon > 180.) .and. any(ecmwf%lon < 180.)) then
+   if ((date .eq. -999) .and. (ind .eq. -999)) then
+      dummy3d_new= dummy3d
+   else
       dummy3d_new(1:ind,:, :) = dummy3d(date:,:, :)
       dummy3d_new(ind+1:,:, :)= dummy3d(1:date-1,:, :)
-   else
-      dummy3d_new= dummy3d
    end if
 
    do i = 1, ecmwf%ydim
