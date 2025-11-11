@@ -155,6 +155,8 @@ def read_sat_data(fname, sensor = 'fci',
         nlines, ncols = sat_data[channels[-1]].shape
         line_times = sat_data[channels[-1]]['acq_time'].data
         per_pixel_time = np.tile(line_times[:, None], (1, ncols))
+        bad_pixel_times = np.isnan(per_pixel_time)
+        per_pixel_time[bad_pixel_times] = 0 # Make the date obviously wrong; we'll mask this later
         per_pixel_time = pd.to_datetime(per_pixel_time).to_pydatetime()
     # Retrieve viewing angle data
     if sensor == 'fci':
@@ -184,13 +186,14 @@ def read_sat_data(fname, sensor = 'fci',
         lon = lons,
         lat = lats
     )
+    sol_azi[bad_pixel_times] = np.nan
+    sol_zen[bad_pixel_times] = np.nan
     sol_azi = np.rad2deg(sol_azi)
     # Fix solar azimuth so it's always positive, i.e. between 0 and 360
     # sol_azi = sol_azi - 180.
     # sol_azi[sol_azi < 0] = sol_azi[sol_azi < 0] + 360
     # Convert elevation to zenith that ORAC needs
     sol_zen = 90. - np.rad2deg(sol_zen) 
-    # print(np.nanmin(sol_zen), np.nanmax(sol_zen))
     # Now we have the viewing and solar angles, we can calculate relative azimuth from Adam's method:
     # https://eodg.atm.ox.ac.uk/eodg/gray/2020Povey1.pdf#:~:text=This%20notebook%20is%20intended%20to%20plot%20the
     dummy_sol_azi = sol_azi.copy()
@@ -199,7 +202,6 @@ def read_sat_data(fname, sensor = 'fci',
     where_too_large = rel_azi > 180
     # Clean it up
     rel_azi[where_too_large] = 360 - rel_azi[where_too_large]
-    # print(sat_data[channels[-1]].time_parameters['observation_start_time'])
     obs_start_time = sat_data[channels[-1]].time_parameters['observation_start_time']
     obs_end_time = sat_data[channels[-1]].time_parameters['observation_end_time']
     # Define the global vars for use in generating the final .nc file
@@ -305,12 +307,11 @@ def read_sat_data(fname, sensor = 'fci',
     all_map_ids_abs_to_snow_and_ice = tuple([map_band(_, mapping_type='snow_and_ice') for _ in all_channel_dim])
     # Finally, convert the gregorian datetime (normal) to Julian datetime
     def greg2jd(arr):
-        # arr = arr.item()   
+        # arr = arr.item()  
         return arr.toordinal() + (arr.hour / 24.0) + (arr.minute / 1440.0) + (arr.second / 86400.0) + 1721424.5
     greg2jd = np.vectorize(greg2jd)
     per_pixel_time = greg2jd(per_pixel_time)
-    if sensor == 'fci':
-        per_pixel_time[bad_pixel_times] = _FillValue
+    per_pixel_time[bad_pixel_times] = _FillValue
     # Now all the data has been cleaned up, we can write the data to a netcdf file that ORAC can read
     # os.system('echo "### $(date -u) ### Converting into netCDF format..."')
     nc_file = xr.Dataset(
