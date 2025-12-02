@@ -60,7 +60,10 @@ def read_sat_data(fname, sensor = 'fci',
     '''
     try:
         if sensor == 'seviri':
+            print(fname)
             base_dir = os.path.dirname(fname)
+            print(re.findall(r'MSG(\d)', fname)[0])
+            supported_sensors[sensor]['platform'] = 'MSG-'+ re.findall(r'MSG(\d)', fname)[0]
         else:
             base_dir = os.path.dirname(fname) if '.' in  fname else fname # fname can be a directory of files, e.g. FCI, AHI, SLSTR, or a single file, e.g. SEVIRI
         fnames = find_files_and_readers(
