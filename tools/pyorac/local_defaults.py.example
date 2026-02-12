@@ -29,6 +29,15 @@ The eighth selection defines the LUTs available on your local system.
 # Location of your copy of the ORAC repository. This is used to find executables.
 ORAC_DIR = '/home/username/orac/orac'
 
+DEFAULT_L1_PATH = {
+    'SEVIRI': ['/local/storage/MSG3/path1',
+               '/local/storage/MSG3/path2',
+               '/local/storage/MSG4/path1'],
+    'FCI': ['/local/storage/MTG/path1',
+            '/local/storage/MTG/path2',
+            '/local/storage/MTG/path3']
+}
+
 # regression.py calls a set of predefined regression tests. The L1 files for
 # those tests are expected to be found in a single folder (which could be
 # symlinks to a more rational location), which is defined here.
@@ -41,12 +50,12 @@ REGRESS_OUT_DIR = '/local/storage/orac/regression_tests'
 # Path to the library file used to compile ORAC. This is used by
 # pyorac.util.build_orac_library_path() to set LD_LIBRARY_PATH. You can just
 # type of the full path to your library file,
-ORAC_LIB = '/home/username/orac/orac/config/lib.inc'
+ORAC_LIB = '/home/username/orac/config/lib.inc'
 # Or load the ORAC_LIB environment variable, which is what the Makefile uses.
 import os
 try:
     ORAC_LIB = os.environ["ORAC_LIB"]
-except KeyError
+except KeyError:
     ORAC_LIB = ORAC_DIR + '/config/lib.inc'
 
 # Indicates the format of meteorological data used. The values are:
@@ -92,7 +101,13 @@ AUXILIARIES = {
     #'spam_dir': '/local/storage/ecmwf/era_interim/%Y/%m/%d',
 
     # To use ERA5 (ecmwf_flag == 5), specify
-    'ecmwf_dir': '/local/storage/era5/%Y/%m/%d',
+    'ecmwf_dir': '/local/storage/ecmwf_ifs_nc',
+    'ecmwf_grb_dir': '/local/storage/ecmwf_ifs_grb',
+    'gfs_dir': '/local/storage/noaa_gfs/nrt/',
+    'cams_dir': '/local/storage/cams_nrt/49r1/forecast/',
+    'era5_dir': '/local/storage/ecmwf-era5/data/oper/',
+    'era5t_dir': '/local/storage/ecmwf-era5t/data/oper/',
+    'era-interim_dir':'/local/storage/ecmwf-era-interim/data/',
 
     # Directory to store the EMOS interpolation file. LibEmos will put a file,
     # CF_T0255_R0036000, in your home directory unless the environment variable
@@ -126,6 +141,9 @@ AUXILIARIES = {
 
     # Climatology of Swansea s and p parameters. Please request if needed.
     'swansea_dir': '/usr/lib/swansea_cb',
+    
+    'tsi_file': '/local/storage/tsi_noaa_cdr_and_tsis_tim_1978-01-01_2022-07-16.nc',
+}
 }
 
 
@@ -159,9 +177,12 @@ GLOBAL_ATTRIBUTES = {
 # ======================= FOLDER NAME PREFERENCES =========================
 # The scripts will generate these subdirectories to store intermediary and
 # log files.
-LOG_DIR = "log"
-PRE_DIR = "pre"
-
+SCRATCH_DIR = "/local/scratch"
+LOG_DIR = SCRATCH_DIR+"/logs"
+PRE_DIR = SCRATCH_DIR+"/preproc_out"
+PROC_DIR = SCRATCH_DIR+"/proc_out"
+UNCOMP_DIR = SCRATCH_DIR+"/l1_uncomp"
+OUTPUT_DIR = "/local/final_out"
 # Some users desire specific control over each retrieval. If there are settings
 # you routinely wish used for all aerosol retrievals over land or sea or cloud
 # retrievals, put those (as raw driver file input) in a file and put the path to
@@ -219,7 +240,8 @@ _CLD_CHANNELS = {
     "ATSR2": "--use_channels 2 3 4 5 6 7",
     "AVHRR": "--use_channels 1 2 3 4 5 6",
     "MODIS": "--use_channels 1 2 6 20 31 32",
-    "SEVIRI": "--use_channels 1 2 3 4 9 10",
+    "SEVIRI": "--use_channels 1 2 4 9 10 11",
+    "FCI": "--use_channels 3 4 9 14 15 16",
     "SLSTR": "--use_channels 2 3 5 7 8 9",
 }
 for sensor, channels in _CLD_CHANNELS.items():
@@ -255,6 +277,7 @@ _AER_SINGLE_CHANNELS = {
     "AVHRR": "--use channels 1 2 3",
     "MODIS": "--use_channels 4 1 2 6",
     "SEVIRI": "--use_channels 1 2 3",
+    "FCI": "--use_channels 3 4 7",
 }
 for sensor, channels in _AER_SINGLE_CHANNELS.items():
     RETRIEVAL_SETTINGS[sensor + "_A"] = [
@@ -294,7 +317,14 @@ CHANNELS = {
     "MODIS": (1, 2, 6, 20, 31, 32),
     "SEVIRI": (1, 2, 3, 4, 5, 6, 7, 9, 10, 11),
     "SLSTR": (1, 2, 3, 5, 7, 8, 9, 10, 11, 12, 14),
+    "FCI": (3, 4, 7, 9, 10, 11, 12, 14, 15, 16), # like SEVIRI 1 2 3 4 5 6 7 9 10 11
 }
+
+# ================== DEFAULT LIMITS FOR PROJECT =====================
+# this dictionary gives the limits for each project.
+LIMITS = {
+    GLOBAL_ATTRIBUTES['project']+'_SEVIRI': ['x1', 'x2', 'y1', 'y2'],
+    GLOBAL_ATTRIBUTES['project']+'_FCI': ['x1', 'x2', 'y1', 'y2']}
 
 
 # ==================== REGRESSION TEST SETTINGS ===========================
@@ -335,7 +365,7 @@ BATCH_VALUES = {
 # In this case, we use the default bash client but specify that this should not
 # load my .profile file, as I'm loading those variables internally. We also
 # set that the script should exit when it encounters an error.
-batch_script = """#!/bin/bash --noprofile
+BATCH_SCRIPT = """#!/bin/bash --noprofile
 set -e
 """
 
@@ -366,19 +396,19 @@ LUT_LOOKUP
 LUT_LOOKUP = {
     # Text tables that are all in the same folder can be referenced easily,
     # as there is no need to use functions.
-    'WAT': lambda _, _: (
+    'WAT': lambda _1, _2: (
         '/path/to/some/lut/folder/WAT', # The directory
         None, # No filename is passed for text tables
         'WAT', # This label can be the same as the dict key
         None # Cloud retrievals typically use the default a priori
     ),
-    'ICE': lambda _, _: (
+    'ICE': lambda _1, _2: (
         '/path/to/some/lut/folder/ICE',
         None,
         'ICE',
         None
     ),
-    'ICE-baran': lambda _, _: (
+    'ICE-baran': lambda _1, _2: (
         '/path/to/some/lut/folder/ICE_baran',
         None,
         'ICE', # For text tables, this label *must* be three characters
@@ -492,8 +522,8 @@ def _ncdf_lut_filename(inst, label, microphysical_model, atmospheric_model=2,
         version = 21
     elif inst.sensor in ('AATSR', 'SLSTR'):
         version = 12
-    elif inst.sensor in ('AVHRR', 'MODIS', 'SEVIRI'):
-        version = 11
+    elif inst.sensor in ('AVHRR', 'MODIS', 'SEVIRI', 'FCI'):
+        version = 21
     elif inst.sensor in ('AHI'):
         version = 9
     else:
@@ -501,3 +531,84 @@ def _ncdf_lut_filename(inst, label, microphysical_model, atmospheric_model=2,
 
     return (f'{inst.ncdf_sad_platform}_{sensor_name}_{mb}_{label}_'
             f'a{atm_model:02d}_p{microphysical_model}_v{version:02d}.nc')
+
+# Define particle type array and class
+PHASE_SETTINGS = {}
+class Invpar():
+    """Container for settings to pass to an ORAC retrieval
+    Member variables:
+    var - Name of the element of the state vector
+    ap  - A priori value to use
+    fg  - First guess of this value
+    sx  - A priori uncertainty on this value"""
+
+    def __init__(self,
+                 var,
+                 ap=None,
+                 fg=None,
+                 sx=None):
+        self.var = var
+        if ap:
+            self.ap = ap
+            if fg == None:
+                self.fg = ap
+        if fg:
+            self.fg = fg
+        if sx:
+            self.sx = sx
+
+    def driver(self):
+        """Output lines for a driver file to specify these settings"""
+        driver = ''
+        if self.ap != None:
+            driver += "\nCtrl%XB[{:s}] = {}".format(self.var, self.ap)
+        if self.fg != None:
+            driver += "\nCtrl%X0[{:s}] = {}".format(self.var, self.fg)
+        if self.sx != None:
+            driver += "\nCtrl%Sx[{:s}] = {}".format(self.var, self.sx)
+        return driver
+
+class ParticleType():
+    """Container for an ORAC particle type
+    Member variables:
+    inv - Tuple of Invpars giving settings to pass to retrieval
+    wvl - Wavelengths used (negative implies the second view)
+    sad - SAD file directory to use
+    ls  - If true, process land and sea separately"""
+
+    def __init__(self,
+                 inv = (),
+                 wvl = (0.55, 0.67, 0.87, 1.6, -0.55, -0.67, -0.87, -1.6),
+                 sad = "CCI_A70-A79",
+                 ls = True):
+        self.inv = inv
+        self.wvl = wvl
+        self.sad = sad
+        self.ls  = ls
+
+    def sad_dir(self, base_sad_dir, inst):
+        if "AVHRR" in inst.sensor:
+            return base_sad_dir + "/" + inst.sensor.lower() + "-" + inst.noaa + \
+                "_" + self.sad
+        else:
+            return base_sad_dir + "/" + inst.sensor.lower() + "_" + self.sad
+
+# Using non-imager LUTs and Baum properties at Greg's recommendation
+PHASE_SETTINGS['WAT'] = ParticleType(wvl=(0.67, 0.87, 1.6, 3.7, 11, 12),
+                               sad="WAT", ls=False)
+PHASE_SETTINGS['ICE'] = ParticleType(wvl=(0.67, 0.87, 1.6, 3.7, 11, 12),
+                               sad="ICE_baum", ls=False)
+PHASE_SETTINGS['CDF'] = ParticleType(ls=False)
+
+tau = Invpar('ITau', ap=-1.0, sx=1.5)
+
+PHASE_SETTINGS['A70'] = ParticleType(inv=(tau, Invpar('IRe', ap=0.0856, sx=0.15)))
+PHASE_SETTINGS['A71'] = ParticleType(inv=(tau, Invpar('IRe', ap=-0.257, sx=0.15)))
+PHASE_SETTINGS['A72'] = ParticleType(inv=(tau, Invpar('IRe', ap=-0.257, sx=0.15)))
+PHASE_SETTINGS['A73'] = ParticleType(inv=(tau, Invpar('IRe', ap=-0.257, sx=0.15)))
+PHASE_SETTINGS['A74'] = ParticleType(inv=(tau, Invpar('IRe', ap=-0.257, sx=0.15)))
+PHASE_SETTINGS['A75'] = ParticleType(inv=(tau, Invpar('IRe', ap=-0.0419, sx=0.15)))
+PHASE_SETTINGS['A76'] = ParticleType(inv=(tau, Invpar('IRe', ap=0.0856, sx=0.15)))
+PHASE_SETTINGS['A77'] = ParticleType(inv=(tau, Invpar('IRe', ap=-0.0419, sx=0.15)))
+PHASE_SETTINGS['A78'] = ParticleType(inv=(tau, Invpar('IRe', ap=-0.257, sx=0.15)))
+PHASE_SETTINGS['A79'] = ParticleType(inv=(tau, Invpar('IRe', ap=-0.848, sx=0.15)))
