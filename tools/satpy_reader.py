@@ -43,7 +43,8 @@ dask.config.set(scheduler='single-threaded')
 supported_sensors = { # dict of sensors, whether they're multi-file or single file and extension for top-level dir if multi-file (only a problem for Sentinel), e.g:
     # '<sensor_name_from_satpy>': {'multifile?': <bool_type>, 'extension': <None_or_str_type>}
     'fci': {'multifile?': True, 'extension': None, 'reader': 'fci_l1c_nc', 
-            'channel_ids_default':(3, 4, 7, 9, 14, 15), 'platform':'MTG-I1'},
+            'channel_ids_default':(3, 4, 7, 9, 14, 15), 'platform':'MTG-I1',
+            'central_wvl':[0.444, 0.510, 0.640, 0.865, 0.914, 1.380, 1.610, 2.25, 3.8, 6.3, 7.35, 8.7, 9.66, 10.5, 12.3, 13.3]},
     'seviri': {'multifile?': True, 'extension': None, 'reader': 'seviri_l1b_hrit', 
                'channel_ids_default':(1, 2, 3, 4, 9, 10), 'platform':'MSG-3', 
                'central_wvl': [0.635, 0.81, 1.64, 3.92, 6.25, 7.35, 8.7, 9.66, 10.8, 12., 13.4]},
@@ -61,6 +62,7 @@ def read_sat_data(fname, sensor = 'fci',
     try:
         if sensor == 'seviri':
             base_dir = os.path.dirname(fname)
+            supported_sensors[sensor]['platform'] = 'MSG-'+ re.findall(r'MSG(\d)', fname)[0]
         else:
             base_dir = os.path.dirname(fname) if '.' in  fname else fname # fname can be a directory of files, e.g. FCI, AHI, SLSTR, or a single file, e.g. SEVIRI
         fnames = find_files_and_readers(
@@ -107,8 +109,9 @@ def read_sat_data(fname, sensor = 'fci',
     if use_channels is not None: # This should allow for selection of channels based on channel number
         channels = [channel for n, channel in enumerate(channels) if n+1 in use_channels] # We assume that use_channels is a list of integers using 1-indexing
         channel_ids = tuple(use_channels)
-    # os.system('echo "### $(date -u) ### Loading channels..."')
+    os.system('echo "### $(date -u) ### Loading channels..."')
     sat_data.load(channels)
+    sat_data_original = sat_data
     # Sort the channels to be in the correct order by central wavelength
     channels = sorted(zip([sat_data[channel].wavelength.central for channel in channels], channels))
     channels = [_[-1] for _ in channels]
@@ -310,7 +313,10 @@ def read_sat_data(fname, sensor = 'fci',
         # arr = arr.item()  
         return arr.toordinal() + (arr.hour / 24.0) + (arr.minute / 1440.0) + (arr.second / 86400.0) + 1721424.5
     greg2jd = np.vectorize(greg2jd)
-    per_pixel_time = greg2jd(per_pixel_time)
+    if sensor=='fci':
+        per_pixel_time = greg2jd(per_pixel_time.astype(dt))
+    else:
+        per_pixel_time = greg2jd(per_pixel_time)  
     per_pixel_time[bad_pixel_times] = _FillValue
     # Now all the data has been cleaned up, we can write the data to a netcdf file that ORAC can read
     # os.system('echo "### $(date -u) ### Converting into netCDF format..."')
@@ -466,7 +472,10 @@ def main(fname, limit, high_res, use_channels, sensor, segment):
         sensor = 'seviri'
         start_time=dt.strptime(fname[-15:-3], '%Y%m%d%H%M')
         end_time=dt.strptime(fname[-15:-3], '%Y%m%d%H%M')+timedelta(minutes=15)
-        segment = "|".join([f"{int(n):06d}" for n in str(segment).split()] + ["EPI","PRO"])
+        if segment == 'None':
+            segment = None
+        else:
+            segment = "|".join([f"{int(n):06d}" for n in str(segment).split()] + ["EPI","PRO"])
     else:
         raise Exception('--sensor not supported')
     # Parse high_res option
