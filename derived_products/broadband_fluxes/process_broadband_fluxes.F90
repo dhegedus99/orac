@@ -543,6 +543,7 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
       index2 = len_trim(argname)
       tmpname1 = trim(adjustl(argname(1:index1-1)))
       tmpname2 = trim(adjustl(argname(index1+1:index2)))
+
       if (tmpname1 .eq. 'cci_aerosol') then
          Faerosol = trim(tmpname2)
          aerosol_processing_mode = 2
@@ -564,7 +565,7 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
          FtoaSW = trim(tmpname2)
          lut_mode = 1
       end if
-      if (trim(tmpname1) .eq. 'surface_to_process') then
+      if (tmpname1 .eq. 'surface_to_process') then
          select case (trim(tmpname2))
          case('0')
              surface_to_process=0
@@ -572,7 +573,7 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
              surface_to_process=1
          end select
       end if
-      if (trim(tmpname1) .eq. 'verbose') then
+      if (tmpname1 .eq. 'verbose') then
          select case (trim(tmpname2))
          case('0')
              verbose=.false.
@@ -582,7 +583,7 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
       end if
    end do
 #endif
-   print*, verbose
+
    !----------------------------------------------------------------------------
    ! Read time string from file
    !----------------------------------------------------------------------------
