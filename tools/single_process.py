@@ -11,12 +11,12 @@ import warnings
 from argparse import ArgumentParser
 
 from pyorac.arguments import (args_common, args_cc4cl, args_preproc,
-                              args_main, args_postproc, check_args_common,
+                              args_main, args_postproc, args_fluxes, check_args_common,
                               check_args_cc4cl)
 from pyorac.colour_print import colour_print
 from pyorac.definitions import COLOURING, FileName, OracError, OracWarning
 from pyorac.local_defaults import LOG_DIR
-from pyorac.run import process_post, process_pre, process_main
+from pyorac.run import process_post, process_pre, process_main, process_flux, process_sisem_post
 from pyorac.util import warning_format
 
 warnings.formatwarning = warning_format
@@ -33,30 +33,36 @@ args_cc4cl(pars)
 args_preproc(pars)
 args_main(pars)
 args_postproc(pars)
+args_fluxes(pars)
 args = pars.parse_args()
 
 
 args = check_args_common(args)
-args = check_args_cc4cl(args)
+#args = check_args_cc4cl(args)
 log_path = os.path.join(args.out_dir, LOG_DIR)
 
 try:
     inst = FileName(args.in_dir, args.target)
-
-    if inst.oractype in ('primary', 'secondary'):
-        jid, _ = process_post(args, log_path)
+    if inst.oractype =='bugsrad':
+        jid, out_file = process_sisem_post(args, log_path, files=args.files)
+    elif inst.oractype in ('primary', 'secondary'):
+        if hasattr(inst, 'phase'):
+            jid, out_file = process_post(args, log_path, files=args.files)
+        else:
+            jid, out_file = process_flux(args, log_path, files=args.files)
 
     elif inst.oractype is None:
-        jid, _ = process_pre(args, log_path)
+        jid, out_file = process_pre(args, log_path)
 
     elif inst.oractype in ('alb', 'clf', 'config', 'geo', 'loc', 'lsf',
                            'lwrtm', 'msi', 'prtm', 'swrtm'):
-        jid, _ = process_main(args, log_path)
+        jid, out_file = process_main(args, log_path)
 
     else:
         raise OracError("Could not determine processing type. Please pass "
                         "the filename of a valid ORAC input.")
-
+    print(f"JID={jid}")
+    print(f"out_file={out_file}")
     if args.script_verbose and args.batch:
         print("Job queued with ID {}".format(jid))
 
