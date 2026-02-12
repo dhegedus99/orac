@@ -169,7 +169,7 @@ def call_exe(args, exe, driver, values=None):
         ghandle.write(exe + ' ' + driver_file + "\n")
         if not args.keep_driver:
             ghandle.write("rm -f " + driver_file + "\n")
-        ghandle.write("rm -f " + script_file + "\n")
+        ghandle.write("rm -f " + script_file.replace('driver','sh') + "\n")
         ghandle.close()
         os.chmod(script_file, 0o700)
 
