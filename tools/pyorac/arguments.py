@@ -55,7 +55,9 @@ def args_common(parser):
                      help='Adds an optional line to any driver file. Passed '
                           'as SECTION KEY VALUE sets, where SECTION is pre, main, or '
                           'post and KEY is an optional argument of that processor.')
-
+    key.add_argument('--files', nargs='+', type=str, default=[],
+                     help='Files to be used for single_process.py script')
+    
     out = key.add_mutually_exclusive_group()
     out.add_argument('-v', '--script_verbose', action='store_true',
                      help='Print progress through script, not exe.')
@@ -92,6 +94,12 @@ def args_preproc(parser):
     key.add_argument('--no_predef', action='store_true',
                      help='For geostationary sensors, calculate geolocation '
                           'online, rather than load a predefined file.')
+    key.add_argument('--ext_lsm_path', type=str, nargs='?', metavar='FILE',
+                       default = None,
+                       help = 'Path to external land/sea mask file (geostationary only)')
+    key.add_argument('--ext_geo_path', type=str, nargs='?', metavar='FILE',
+                       default = None,
+                       help = 'Path to external geolocation file (geostationary only)')       
     key.add_argument('--cloud_emis', action='store_true',
                      help='Output cloud emissivity from RTTOV.')
     key.add_argument('--ir_only', action='store_true',
@@ -100,6 +108,10 @@ def args_preproc(parser):
                      help='Skip the Pavolonis cloud typing.')
     key.add_argument('--swansea', action='store_true',
                      help='Use the Swansea climatology instead of MODIS BRDF.')
+    key.add_argument('--USE_SEVIRI_ANN_CMA_CPH', action='store_true',
+                     help = 'Use ML code for cloudmask and cloudphase')     
+    key.add_argument('--USE_ECMWF_PREPROC_GRID', action='store_true',
+                     help = 'Use native ECMWF grid for preprocessing') 
     emis = key.add_mutually_exclusive_group()
     emis.add_argument('--use_modis_emis', action='store_true',
                       help='Use MODIS surface emissivity rather than RTTOV.')
@@ -118,7 +130,7 @@ def args_preproc(parser):
                      help='Revision (version) number for file.')
 
     ecmwf = parser.add_argument_group('ECMWF settings')
-    ecmwf.add_argument('--nwp_flag', type=int, choices=range(5),
+    ecmwf.add_argument('--nwp_flag', type=int, choices=range(6),
                        default=defaults.NWP_FLAG,
                        help='Type of ECMWF data to read in.')
     ecmwf.add_argument('--single_ecmwf', action='store_const',
@@ -149,7 +161,10 @@ def args_main(parser):
                       help='Retrieval class to be used (for layer 1).')
     main.add_argument('--lut_name', type=str,
                       choices=list(defaults.LUT_LOOKUP.keys()),
-                      help='User-defined label for  look-up table to use.')
+                      help='User-defined label for nc look-up table to use.')
+    main.add_argument('--phase', type=str, default = 'None',
+                      choices = list(defaults.PHASE_SETTINGS.keys()),
+                      help = 'Label of look-up table to use in retrieval.')
     main.add_argument('--sabotage', action='store_true',
                       help='Sabotage inputs during processing.')
     main.add_argument('--types', type=str, nargs='+',
@@ -202,23 +217,49 @@ def args_postproc(parser):
                            'appropriate for the selected type. Only relevant '
                            'when processing exclusively water and ice cloud.')
 
+def args_fluxes(parser):
+    """Define arguments for postprocessor script."""
+
+    flux = parser.add_argument_group('Flux paths')
+    flux.add_argument('--tsi', type=str, action="append", metavar='DIR',
+                     help='Path for TSI.')
+    flux.add_argument('--pre_dir', type=str, metavar='DIR',
+                     help='Directory path for preproc output files.')
+    flux.add_argument('--flux_alg', type=int, choices=(1,2,3,4),
+                     default=1, help='BUGSrad: 1, FuLiou-2Stream Modified Gamma: 2, FuLiou-4stream: 3, FuLiou-2Stream: 4')
+    #flux.add_argument('-l', '--subset', type=int, nargs=4, default=(0, 0, 0, 0),
+    #                metavar=('X0', 'X1', 'Y0', 'Y1'))
+    flux.add_argument('--cci_aerpix', type=str, nargs='?', action="append", metavar='DIR',
+                     help='Path for aerosol product in primary file.')
+    flux.add_argument('--cci_aerosol', type=str, nargs='?', action="append", metavar='DIR',
+                     help='Path for v3.02 or v4.01 types.')
+    flux.add_argument('--cci_collocation', type=str, nargs='?', action="append", metavar='DIR',
+                     help='Path for cci collocation.')
+    flux.add_argument('--modis_aerosol', type=str, nargs='?', action="append", metavar='DIR',
+                     help='Path for MOD04 or MYD04 COLLECTION 6.')
+    flux.add_argument('--modis_cloud', type=str, nargs='?', action="append", metavar='DIR',
+                     help='Path for MOD06 or MYD06 COLLECTION 6.')
+    flux.add_argument('--LUT_mode', type=str, nargs='?', action="append", metavar='DIR',
+                     help='Path for LUT mode.')
+    flux.add_argument('--surface_to_process', type=int, choices=(0,1,2),
+                     default=2, help='sea:0, land:1, both:2')
 
 def args_cc4cl(parser):
     """Define arguments for ORAC suite wrapper script."""
 
     cccl = parser.add_argument_group('Keywords for CC4CL suite processing')
-    cccl.add_argument('-C', '--clobber', type=int, nargs='?', default=3,
-                      choices=range(4),
+    cccl.add_argument('-C', '--clobber', type=int, nargs='?', default=5,
+                      choices=range(6),
                       help='Level of processing to clobber:\n'
-                           '0=None, 1=Post, 2=Main+Post, 3=All (default).')
-    cccl.add_argument('--dur', type=str, nargs=3, metavar='HH:MM',
-                      default=('24:00', '24:00', '24:00'),
+                           '0=None, 1=Post, 2=Main+Post, 5=All (default).')
+    cccl.add_argument('--dur', type=str, nargs=6, metavar='HH:MM',
+                      default=('24:00', '24:00', '24:00', '24:00', '24:00', '24:00'),
                       help='Maximal duration (in HH:MM) required by the '
-                           'pre, main and post processors. Default 24:00.')
-    cccl.add_argument('--ram', type=int, nargs=3, metavar='Mb',
-                      default=(11000, 11000, 11000),
-                      help='Maximal memory (in Mb) used by the pre, main and '
-                           'post processors. Default 11000.')
+                           'ecmwf, pre, main and post processors, and flux calculations and sisem postproc. Default 24:00.')
+    cccl.add_argument('--ram', type=int, nargs=6, metavar='Mb',
+                      default=(11000, 11000, 11000, 11000, 11000, 11000),
+                      help='Maximal memory (in Mb) used by the ecmwf, pre, main and '
+                           'post processors, flux and sisem postproc. Default 11000.')
     cccl.add_argument('-e', '--extra_lines', nargs=2, action='append',
                       metavar=('SECTION', 'LINE'),
                       default=[], help='Path to a file giving extra lines for '
@@ -319,6 +360,22 @@ def check_args_preproc(args):
             args.ggam_dir = args.ecmwf_dir
             args.ggas_dir = args.ecmwf_dir
             args.spam_dir = args.ecmwf_dir
+        if args.nwp_flag==0:
+            args.ggam_dir = args.gfs_dir
+            args.ggas_dir = args.gfs_dir
+            args.spam_dir = args.gfs_dir
+        elif args.nwp_flag==2:
+            args.ggam_dir = args.era5_dir
+            args.ggas_dir = args.era5_dir
+            args.spam_dir = args.era5_dir
+        elif args.nwp_flag==4:
+            args.ggam_dir = args.era-interim_dir
+            args.ggas_dir = args.era-interim_dir
+            args.spam_dir = args.era-interim_dir
+        elif args.nwp_flag==5:
+            args.ggam_dir = args.cams_dir
+            args.ggas_dir = args.cams_dir
+            args.spam_dir = args.cams_dir
     except AttributeError:
         pass
 
@@ -398,6 +455,63 @@ def check_args_postproc(args):
     for fdr in args.in_dir:
         if not os.path.isdir(fdr):
             raise FileMissing('Processed output directory', fdr)
+
+    return args
+
+
+def check_args_fluxes(args):
+    """Ensure main processor parser arguments are valid."""
+    
+    # Add global attributes
+    defaults.GLOBAL_ATTRIBUTES.update({key: val for key, val in args.global_att})
+    args.__dict__.update(defaults.GLOBAL_ATTRIBUTES)
+
+    # Insert auxilliary locations
+    defaults.AUXILIARIES.update({key: val for key, val in args.aux})
+    args.__dict__.update(defaults.AUXILIARIES)
+    
+    if len(args.in_dir) > 1:
+        warnings.warn('Flux processor ignores all but first in_dir.',
+                      OracWarning, stacklevel=2)
+    if not os.path.isdir(args.in_dir[0]):
+        raise FileMissing('Preprocessed directory', args.in_dir[0])
+    
+    if args.tsi is None:
+            args.tsi = '/gws/nopw/j04/nceo_generic/cloud_ecv/data_in/tsi_noaa_cdr_and_tsis_tim_1978-01-01_2022-07-16.nc'
+            
+    if args.flux_alg is None:
+            args.flux_alg = '1'
+    
+    if args.cci_aerpix:
+        if not os.path.isdir(args.cci_aerpix[0]):
+            raise FileMissing('Preprocessed directory with aerosol data', args.cci_aerpix[0])
+    elif args.cci_aerosol:
+        if not os.path.isdir(args.cci_aerosol[0]):
+            raise FileMissing('Preprocessed directory with aerosol data', args.cci_aerosol[0])
+    elif args.cci_collocation:
+        if not os.path.isdir(args.cci_collocation[0]):
+            raise FileMissing('Preprocessed directory with collocation data', args.cci_collocation[0])
+    elif args.modis_aerosol:
+        if not os.path.isdir(args.modis_aerosol[0]):
+            raise FileMissing('Modis aerosol data', args.modis_aerosol[0])
+    if args.modis_cloud:
+        if not os.path.isdir(args.modis_cloud[0]):
+            raise FileMissing('Modis cloud data', args.modis_cloud[0])
+    
+    if args.LUT_mode:
+        if not os.path.isdir(args.LUT_mode[0]):
+            raise FileMissing('Preprocessed directory with LUT mode', args.LUT_mode[0])
+
+            
+    # Update FileName class
+    if args.revision is not None:
+        args.File.revision = args.revision
+    if "processor" not in args.File.__dict__:
+        args.File.processor = args.processor
+    if "project" not in args.File.__dict__:
+        args.File.project = args.project
+    if "product_name" not in args.File.__dict__:
+        args.File.product_name = args.product_name
 
     return args
 
