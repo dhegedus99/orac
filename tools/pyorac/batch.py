@@ -156,7 +156,7 @@ BSUB = BatchSystem(
 # SLURM, the new Oxford queuing system
 SLURM = BatchSystem(
     'sbatch',
-    r'Submitted batch job (?P<ID>\d+)', '--dependency=afterok:{}', ':', """
+    r'Submitted batch job (?P<ID>\d+)', '--dependency=afterany:{}', ':', """
 if [ -n "$SLURM_CPUS_PER_TASK" ]; then
     omp_threads=$SLURM_CPUS_PER_TASK
 else
@@ -178,5 +178,6 @@ export OMP_NUM_THREADS=$omp_threads
      'project': '--comment={}'.format,
      'account': '--account={}'.format,
      'environ': '--export={}'.format,
+     'qos': '--qos={}'.format
      }
 )
