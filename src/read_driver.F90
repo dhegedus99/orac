@@ -611,7 +611,7 @@ subroutine Read_Driver(Ctrl, global_atts, source_atts)
    Ctrl%Ind%Y1 = 0
 
    !------------ Ctrl ILLUMINATION CONDITIONS -------------
-   Ctrl%MaxSolZen = 75. ! Maximum solar zenith angle
+   Ctrl%MaxSolZen = 80. ! Maximum solar zenith angle
    Ctrl%MaxSatZen = 90. ! Maximum satellite zenith angle
    Ctrl%MinRelAzi = 0.  ! Used to remove sunglint (0 = no test)
    Ctrl%Sunset    = 90. ! Used to identify twilight conditions
