@@ -121,7 +121,7 @@ class FileName:
     platform (str): Name of the satellite platform, formatted for the
         preprocessor.
     inst (str): Combined sensor/platform, formatted for the main processor.
-    time (datetime): tart time of the orbit/granule.
+    time (datetime): start time of the orbit/granule.
     dur (timedelta): Expected duration of the file.
     oractype (str): For an ORAC output, describes the type of file.
         Equals None otherwise.
@@ -398,13 +398,46 @@ class FileName:
 
             return
 
+        mat = re.search('MSG-(?P<platform>\d{1})-(?P<sensor>[A-Z]+)'
+                      '-(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})'
+                      '(?P<hour>\d{2})(?P<min>\d{2})00.orac-compatible.nc', filename)
+        if mat:
+            self.sensor   = 'PYTHON'
+            self.platform = 'MSG-'+mat.group('platform')
+            self.inst     = 'SEVIRI-MSG-'+mat.group('platform')
+            self.time     = datetime.datetime(
+                int(mat.group('year')), int(mat.group('month')), int(mat.group('day')),
+                int(mat.group('hour')), int(mat.group('min')), 0, 0)
+            self.dur      = datetime.timedelta(seconds=900) # Guessing
+            self.geo      = filename
+            self.predef = True
+            return
+
+        # Attempt FCI L1C filename
+        mat = re.search(r'(?P<platform>\w+-\w+)-(?P<sensor>[A-Z]+)'
+                      '-(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})'
+                      '(?P<hour>\d{2})(?P<min>\d{2})(?P<sec>\d{2}).orac-compatible.nc', filename)
+        if mat:
+            self.sensor = 'PYTHON' # But we want to use the sensor; this is just to handle Simon's work-around 
+            self.platform = mat.group('platform')
+            self.inst     = mat.group('sensor')+'-'+mat.group('platform')
+            self.time = datetime.datetime(
+                int(mat.group('year')), int(mat.group('month')),
+                int(mat.group('day')), int(mat.group('hour')),
+                int(mat.group('min')), int(mat.group('sec')), 0
+            )
+            self.dur = datetime.timedelta(seconds=600)  # Approximately
+            self.geo = filename
+            self.predef = False
+            return
+
         # Processed ORAC output
         mat = re.search(
             r'(?P<project>\w+)-(?P<product>.+)-(?P<sensor>\w+)_'
             r'(?P<processor>\w+)_(?P<platform>\w+)_(?P<year>\d{4})'
             r'(?P<month>\d{2})(?P<day>\d{2})(?P<hour>\d{2})(?P<min>\d{2})'
             r'(?:_(?P<orbit_num>\d{5}))?_R'
-            r'(?P<revision>\d+)(?P<phase>\w*)\.(?P<filetype>\w+)\.nc', filename
+            r'(?P<revision>\d+)(?P<phase>[\w-]*)\.(?P<filetype>\w+)\.nc', filename
         )
         if mat:
             self.sensor = mat.group('sensor')
@@ -429,6 +462,8 @@ class FileName:
             self.project = mat.group('project')
             self.product_name = mat.group('product')
             self.orbit_num = mat.group('orbit_num')
+            if mat.group('phase'):
+                self.phase = mat.group('phase')
             return
 
         raise OracError('Unexpected filename format - ' + filename)
@@ -472,7 +507,8 @@ class FileName:
             terms = err.args[0].split("'")
             raise ValueError("A default root name can only be determined "
                              "for ORAC filenames. Please specify " + terms[-2])
-
+        if self.sensor == 'PYTHON':
+            self.sensor = self.inst.split('-')[0]
         parts = [
             self.sensor, processor, self.platform.replace("-", ""),
             self.time.strftime('%Y%m%d%H%M'), "R{}".format(revision)
@@ -521,6 +557,8 @@ class FileName:
         """Platform name using the formatting of the NCDF LUTs"""
         if self.platform.startswith("MSG"):
             return "meteosat-{:d}".format(int(self.platform[4:]) + 7)
+        if self.platform.startswith("MTG"):
+            return "meteosat-12"
         if self.platform.startswith("FY"):
             return "fengyun-" + self.platform[3:].lower()
         return self.platform.lower()
