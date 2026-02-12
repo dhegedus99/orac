@@ -139,6 +139,8 @@
 ! 2022/04/28, GT: Added a check for the existence of the "par_weight"
 !    parameter in the TSI dataset, as it is not included/needed in the new NOAA
 !    TSI CDRs.
+! 2025/09/25, DH: Added OpenMP capability for the flux computation. Switched to using sreal_fill_value 
+!    instead of -999.0. Fixed indexing for reading in latitude of met data.
 !
 ! Bugs:
 ! None known.
@@ -171,7 +173,7 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
    character(path_length) :: FMOD04, FMOD06
    integer :: algorithm_processing_mode ! 1-BUGSrad, 2-FuLiou2G, 3-FuLiou4S, 4-FuLiou 2S
    integer :: ncid, i, j, k, dims_var(2), dim3d_var(3)
-   logical, parameter :: verbose=.true.
+   logical :: verbose
    logical :: there
    type(global_attributes_t) :: global_atts
    type(source_attributes_t) :: source_atts
@@ -532,6 +534,7 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
    aerosol_processing_mode = 0
    lut_mode = 0
    surface_to_process=2
+   verbose=.false.
 #ifndef WRAPPER
    ! Set Faerosol, Fcollocation, FMOD04, FMOD06, InfThnCld, corrected_cth, FtoaSW
    do i = 11, nargs
@@ -540,7 +543,6 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
       index2 = len_trim(argname)
       tmpname1 = trim(adjustl(argname(1:index1-1)))
       tmpname2 = trim(adjustl(argname(index1+1:index2)))
-
       if (tmpname1 .eq. 'cci_aerosol') then
          Faerosol = trim(tmpname2)
          aerosol_processing_mode = 2
@@ -562,7 +564,7 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
          FtoaSW = trim(tmpname2)
          lut_mode = 1
       end if
-      if (tmpname1 .eq. 'surface_to_process') then
+      if (trim(tmpname1) .eq. 'surface_to_process') then
          select case (trim(tmpname2))
          case('0')
              surface_to_process=0
@@ -570,9 +572,17 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
              surface_to_process=1
          end select
       end if
+      if (trim(tmpname1) .eq. 'verbose') then
+         select case (trim(tmpname2))
+         case('0')
+             verbose=.false.
+         case('1')
+             verbose=.true.
+         end select
+      end if
    end do
 #endif
-
+   print*, verbose
    !----------------------------------------------------------------------------
    ! Read time string from file
    !----------------------------------------------------------------------------
@@ -1159,7 +1169,8 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
    ! Start OMP section by spawning the threads
    !$OMP PARALLEL &
    !$OMP PRIVATE(i,j,thread_num) &
-   !$OMP PRIVATE(pxTheta, pxts, tmpVal, nanFlag, ml_flag, pxregime, &
+   !$OMP PRIVATE(pxTheta, pxts,  tmpVal, nanFlag, ml_flag, pxregime, pxAsfcSWRdr, pxAsfcNIRdr, pxAsfcSWRdf, pxAsfcNIRdf, &
+   !$OMP ulwfx, dlwfx, uswfx, dswfx, ulwfxclr, dlwfxclr, uswfxclr, dswfxclr,&
    !$OMP pxREF, pxCOT, pxHctop, pxHcbase, pxPhaseFlag, pxHctopID, pxHcbaseID, &
    !$OMP tmp_pxREF, tmp_pxCOT, tmp_pxHctop, tmp_pxHcbase, tmp_pxPhaseFlag, tmp_pxHctopID, tmp_pxHcbaseID, &
    !$OMP pxZ, pxP, pxT, pxQ, pxO3, rho_0d_bugsrad, rho_dd_bugsrad, emis_bugsrad, &
@@ -1168,7 +1179,7 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
    !$OMP pxboaswdndif, bpar, bpardif, tpar, pxLTS, pxFTH, pxcolO3, &
    !$OMP inO3, inQ, inH, inP, inT_) &
    !$OMP SHARED(time_data, lat_data, lon_data, &
-   !$OMP   pxX0, pxX1, pxY0, pxY1,  surface_to_process, &
+   !$OMP   pxX0, pxX1, pxY0, pxY1, pxTSI, pxYear, surface_to_process, &
    !$OMP   TIME, LAT, LON, LSFLAG, STEMP, &
    !$OMP   rho_0d, rho_dd, emis_data, &
    !$OMP   cc_tot, cc_tot2, AREF, AOD550, phase, CTT, CTP, REF, COT, CTH, &
@@ -1191,15 +1202,13 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
    !$OMP END CRITICAL
 #endif
 
-   !$OMP DO SCHEDULE(GUIDED)
+   !$OMP DO SCHEDULE(GUIDED) COLLAPSE(2)
    ! loop over cross-track dimension
    do i = pxX0, pxX1
       call cpu_time(cpuFinish)
       if (mod(i, 50) .eq. 0) then
-         !$OMP CRITICAL
-         print*, 'complete: ', i*100./(xN*1.), &
+         if (verbose) write(*,*) 'complete: ', i*100./(xN*1.), &
               '%   i=', i, cpuFinish-cpuStart,' seconds elapsed'
-         !$OMP END CRITICAL
       end if
 
       ! loop over along-track dimension
@@ -1329,7 +1338,7 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
 
                ! Run full radiation code (not LUT mode)
                if (lut_mode .eq. 0) then
-                  !$OMP CRITICAL
+
                   !----------------------------------------------------------------
                   ! Call BUGSrad algorithm
                   !----------------------------------------------------------------
@@ -1349,7 +1358,9 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
                              emis_bugsrad, rho_0d_bugsrad, rho_dd_bugsrad, pxYEAR,&
                              pxboaswdndif)
                   end if ! BUGSrad algorithm
-                  !$OMP END CRITICAL
+                  if (j .eq. 200) then 
+                  print*, LAT(i,j)
+                  end if
                   !----------------------------------------------------------------
                   ! Call FuLiou algorithm
                   !----------------------------------------------------------------
