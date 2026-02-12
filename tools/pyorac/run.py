@@ -1,19 +1,160 @@
 """Routines to run an ORAC component."""
-import os
+import os, re, datetime
 import pyorac.arguments as oracarg
 import pyorac.definitions as defin
+from pyorac.colour_print import colour_print
 
 from copy import deepcopy
 from collections import OrderedDict
 from glob import glob
 from pyorac import defaults
-from pyorac.util import call_exe
+from pyorac.util import call_exe, read_orac_library_file, build_orac_library_path
+from subprocess import check_call, check_output, CalledProcessError
+import tempfile
 
 CLOBBER = OrderedDict([
-    ('pre', 3),
-    ('main', 2),
-    ('post', 1),
+    ('pre', 5),
+    ('main', 4),
+    ('post', 3),
+    ('flux', 2),
+    ('sisem', 1)
 ])
+
+def process_latest_ecmwf_files(tartime, rawecm, proecm, ecmwf_in, ecmwf_out, ecsdir, 
+                               args, tag='ecmwf', dependency=None):
+    from pyorac import convertgrb2nc as grb2nc
+    rawecm1 = [x for x in rawecm if re.match(r'\w{11,11}'+tartime+'\w',x)]
+    proecm1 = [x for x in proecm if re.match(r'\w{11,11}'+tartime+'\w*',x) and x.endswith('.nc')]
+    process_ecmwf = ''
+    delete_ecmwf = ''
+    # Make sure we're not looking at data produced at the time step 
+    # for which it is forecasting (i.e. the first and second time
+    # stamps are the same). Such data aren't the same as other files
+    if abs(int(max(rawecm1)[11:19]) - int(max(rawecm1)[3:11])) < 100:
+        rawecm1 = rawecm1[0:len(rawecm1)-1]
+    if len(rawecm1) > 0 and len(proecm1) > 0 and \
+            (max(rawecm1))[3:11] > (max(proecm1))[3:11]:                    
+        process_ecmwf=max(rawecm1)
+        delete_ecmwf=max(proecm1)
+    elif len(rawecm1) > 0 and len(proecm1) == 0:
+        process_ecmwf=max(rawecm1)
+    if len(process_ecmwf) > 0:
+        if args.batch:
+            job_name = args.File.job_name(args.revision, tag)
+            from pyorac.local_defaults import LOG_DIR
+            import string, random
+            log_path = os.path.join(args.out_dir, LOG_DIR)
+            uid = ''.join([random.choice(string.ascii_letters+string.digits) 
+                   for n in range(6)])
+            values = {'job_name': job_name,
+                    'log_file': os.path.join(log_path, job_name + uid +'.log'),
+                    'err_file': os.path.join(log_path, job_name + uid +'.err'),
+                    'account': defaults.BATCH_VALUES['account'],
+                    'qos' : defaults.BATCH_VALUES['qos'],
+                    'queue': defaults.BATCH_VALUES['queue']}
+            if 'ram' in defaults.BATCH_VALUES:
+                values['ram'] = defaults.BATCH_VALUES['ram'][0]
+            else:
+                values['ram'] = args.ram[0]
+            if 'duration' in defaults.BATCH_VALUES:
+                values['duration'] = defaults.BATCH_VALUES['duration'][0]
+            else:
+                values['duration'] = args.dur[0]
+            if dependency is not None:
+                values['depend'] = dependency
+            exe = args.orac_dir+'/tools/pyorac/convertgrb2nc.py'
+            cmd = 'python ' + exe + ' ' \
+                    + ecmwf_in + ecsdir + ' ' + ecmwf_out + ecsdir + ' ' + process_ecmwf
+            # Write temporary script to call executable
+            (gd, script_file) = tempfile.mkstemp('.sh', os.path.basename(exe)+'.',
+                                             args.out_dir, True)
+            g = os.fdopen(gd, "w")
+            g.write("#!/bin/bash\n")
+            # Define processing environment
+            libs = read_orac_library_file(args.orac_lib)
+            g.write("export LD_LIBRARY_PATH=" +
+                              build_orac_library_path(libs) + "\n")
+            g.write("export OPENBLAS_NUM_THREADS=1\n")
+            defaults.BATCH.add_openmp_to_script(g)
+            
+            g.write(cmd+"\n")
+            g.write("rm -f "+script_file+"\n")
+            g.close()
+            os.chmod(script_file, 0o700)
+            cmd = defaults.BATCH.list_batch(values, exe=script_file)
+            if args.verbose or args.script_verbose:
+                    colour_print(' '.join(cmd), defin.COLOURING['header'])
+            out = check_output(cmd, universal_newlines=True)
+    
+            # Parse job ID # and return it to the caller
+            jid = defaults.BATCH.parse_out(out, 'ID')
+        else:
+            status = grb2nc.proc_dir(ecmwf_in+ecsdir, ecmwf_out+ecsdir, process_ecmwf)
+            if status != 0:
+                print('Warning: Convert_ECM_GRB2NC.py encountered an ', \
+                    'error with one or more files on date: ',ecsdir)
+            else:
+                jid=True
+        if len(delete_ecmwf) > 0:
+            print('to delete', delete_ecmwf)
+        ecm_out = ecmwf_out+ecsdir + '/' + process_ecmwf +'.nc'
+    else:
+        jid = None
+        ecm_out = None
+    return jid, ecm_out
+
+def pre_process_ecmwf_grib(yr, mth, day, hr, ecmwf_out, ecmwf_in_1, args):
+    # If we're on, or after, the final ECMWF timestep of the day, we'll
+    # also need the first time step of the following day
+    # Calculate the following day's date now, so we can be sure we have
+    # the output directory
+    t1 = datetime.datetime.strptime(yr+mth+day, "%Y%m%d")
+    t2 = t1 + datetime.timedelta(days=1)
+    yr2  = str(t2.year)
+    mth2 = str(t2.month).zfill(2)
+    day2 = str(t2.day).zfill(2)
+    ecsdir='/'+yr+'/'+mth+'/'+day
+    ecsdir2='/'+yr2+'/'+mth2+'/'+day2
+    if not os.access(ecmwf_out+ecsdir, os.F_OK):
+        os.makedirs(ecmwf_out+ecsdir)
+    if not os.access(ecmwf_out+ecsdir2, os.F_OK):
+        os.makedirs(ecmwf_out+ecsdir2)
+    # If we have new ECMWF data available in the ECMWF NRT archive, do
+    # the conversion into netcdf
+    # Check what processed ECMWF files we already have
+    proecm=os.listdir(ecmwf_out+'/'+yr+'/'+mth+'/'+day)
+    # What data is available in the NRT archive
+    rawecm=os.listdir(ecmwf_in_1+'/'+yr+'/'+mth+'/'+day)
+    # We only want to keep the latest forecast file for each time slot. 
+    # The production date/time is stored in characters 3-10 in the ECMWF
+    # filename; characters 11-18 contain the target date-time, which are
+    # at three hour intervals...
+    tartimes=[mth+day+'000', mth+day+'030', mth+day+'060', 
+              mth+day+'090', mth+day+'120', mth+day+'150', 
+              mth+day+'180', mth+day+'210']
+    jids = []
+    ecm_outs = []
+    for tartime in tartimes:
+        if  abs(int(hr) - int(tartime[4:6])) <= 3:
+            jid, ecm_out = process_latest_ecmwf_files(tartime, rawecm, proecm, ecmwf_in_1, 
+                                 ecmwf_out, ecsdir, args)
+            if jid and ecm_out:
+                jids.append(jid)
+                ecm_outs.append(ecm_out)
+    # Now, if the processing is being run after the final ECMWF time 
+    # slot for the day (9 pm), then we need to make sure we have the
+    # first time slot from the following day available as well. So
+    # repeat the above process for this timeslot           
+    if int(hr) >= 21:
+        proecm=os.listdir(ecmwf_out+'/'+yr2+'/'+mth2+'/'+day2)
+        rawecm=os.listdir(ecmwf_in_1+'/'+yr2+'/'+mth2+'/'+day2)
+        tartime=mth2+day2+'000'
+        jid, ecm_path = process_latest_ecmwf_files(tartime, rawecm, proecm, ecmwf_in_1, 
+                             ecmwf_out, ecsdir2, args)
+        if jid and ecm_out:
+                jids = np.append(jid)
+                ecm_outs = np.append(ecm_out)
+    return jids, ecm_outs
 
 
 def process_pre(args, log_path, dependency=None, tag='pre'):
@@ -21,7 +162,7 @@ def process_pre(args, log_path, dependency=None, tag='pre'):
     from pyorac.drivers import build_preproc_driver
 
     args = oracarg.check_args_preproc(args)
-    driver = build_preproc_driver(args)
+    driver, dependency = build_preproc_driver(args)
 
     # This must be called after building the driver as revision is unknown
     job_name = args.File.job_name(args.revision, tag)
@@ -36,12 +177,17 @@ def process_pre(args, log_path, dependency=None, tag='pre'):
         # Settings for batch processing
         values = {'job_name': job_name,
                   'log_file': os.path.join(log_path, job_name + '.log'),
-                  'err_file': os.path.join(log_path, job_name + '.err'),
-                  'duration': args.dur[0],
-                  'ram': args.ram[0]}
+                  'err_file': os.path.join(log_path, job_name + '.err')}
+        if 'ram' in defaults.BATCH_VALUES:
+                values['ram'] = defaults.BATCH_VALUES['ram'][1]
+        else:
+            values['ram'] = args.ram[1]
+        if 'duration' in defaults.BATCH_VALUES:
+            values['duration'] = defaults.BATCH_VALUES['duration'][1]
+        else:
+            values['duration'] = args.dur[1]
         if dependency is not None:
             values['depend'] = dependency
-
         exe = os.path.join(args.orac_dir, 'pre_processing', 'orac_preproc')
         if not os.path.isfile(exe):
             exe = os.path.join(args.orac_dir, 'orac_preproc')
@@ -58,24 +204,39 @@ def process_main(args, log_path, tag='', dependency=None):
     from pyorac.drivers import build_main_driver
 
     args = oracarg.check_args_main(args)
-    _, _, phase, _ = defaults.LUT_LOOKUP[args.lut_name](args.File, True)
-    if args.multilayer is not None:
-        _, _, phase2, _ = defaults.LUT_LOOKUP[args.multilayer[0]](args.File, False)
-        phase += "_" + phase2
+    if args.phase == 'None':
+        _, _, phase, _ = defaults.LUT_LOOKUP[args.lut_name](args.File, True)
+        lutphs = args.lut_name
+        if args.multilayer is not None:
+            _, _, phase2, _ = defaults.LUT_LOOKUP[args.multilayer[0]](args.File, False)
+            phase += "_" + phase2
+    elif args.phase != 'CDF':
+        lutphs = args.phase
+        if args.multilayer is not None:
+            phase = defin.SETTINGS[args.phase].name + "_" + defin.SETTINGS[args.multilayer[0]].name
+        else:
+            phase = defin.SETTINGS[args.phase].name
+
     job_name = args.File.job_name(tag=phase + tag)
     root_name = args.File.root_name(args.revision)
 
     if not os.path.isdir(args.out_dir):
         os.makedirs(args.out_dir, defaults.DIR_PERMISSIONS)
 
-    out_file = os.path.join(args.out_dir, root_name + phase + '.primary.nc')
+    out_file = os.path.join(args.out_dir, root_name + lutphs + '.primary.nc')
     if args.clobber >= CLOBBER['main'] or not os.path.isfile(out_file):
         # Settings for batch processing
         values = {'job_name': job_name,
                   'log_file': os.path.join(log_path, job_name + '.log'),
-                  'err_file': os.path.join(log_path, job_name + '.err'),
-                  'duration': args.dur[1],
-                  'ram': args.ram[1]}
+                  'err_file': os.path.join(log_path, job_name + '.err')}
+        if 'ram' in defaults.BATCH_VALUES:
+                values['ram'] = defaults.BATCH_VALUES['ram'][2]
+        else:
+            values['ram'] = args.ram[2]
+        if 'duration' in defaults.BATCH_VALUES:
+            values['duration'] = defaults.BATCH_VALUES['duration'][2]
+        else:
+            values['duration'] = args.dur[2]
         if dependency is not None:
             values['depend'] = dependency
 
@@ -122,9 +283,15 @@ def process_post(args, log_path, files=None, dependency=None, tag='post'):
         # Settings for batch processing
         values = {'job_name': job_name,
                   'log_file': os.path.join(log_path, job_name + '.log'),
-                  'err_file': os.path.join(log_path, job_name + '.err'),
-                  'duration': args.dur[2],
-                  'ram': args.ram[2]}
+                  'err_file': os.path.join(log_path, job_name + '.err')}
+        if 'ram' in defaults.BATCH_VALUES:
+                values['ram'] = defaults.BATCH_VALUES['ram'][3]
+        else:
+            values['ram'] = args.ram[3]
+        if 'duration' in defaults.BATCH_VALUES:
+            values['duration'] = defaults.BATCH_VALUES['duration'][3]
+        else:
+            values['duration'] = args.dur[3]
         if dependency is not None:
             values['depend'] = dependency
 
@@ -138,6 +305,191 @@ def process_post(args, log_path, files=None, dependency=None, tag='post'):
     else:
         jid = None
 
+    return jid, out_file
+
+def process_flux(args, log_path, files=None, dependency=None, tag='flux'):
+    """Call sequence for post processor"""
+
+    args = oracarg.check_args_fluxes(args)
+    job_name = args.File.job_name(args.revision, tag)
+    root_name = args.File.root_name(args.revision)
+
+    if not os.path.isdir(args.out_dir):
+        os.makedirs(args.out_dir, defaults.DIR_PERMISSIONS)
+    if files is None:
+        # Find all primary files of requested phases in given input folders.
+        files = []
+        files.extend(glob(os.path.join(
+                    args.out_dir, root_name + '.primary.nc'
+        )))
+        files.extend(glob(os.path.join(
+                    args.pre_dir, root_name + '.prtm.nc'
+        )))
+        files.extend(glob(os.path.join(
+                    args.pre_dir, root_name + '.alb.nc'
+        )))
+
+    if len(files) < 3:
+        raise defin.FileMissing('sufficient processed files', args.target)
+    out_file = os.path.join(
+        args.out_dir, '.'.join(filter(
+            None, (root_name, 'bugsrad', 'nc')
+        ))
+    )
+    args.target = out_file
+    
+    if args.clobber >= CLOBBER['flux'] or not os.path.isfile(out_file):
+        
+        exe = os.path.join(args.orac_dir, '/derived_products/broadband_fluxes', 'process_broadband_fluxes')
+        if not os.path.isfile(exe):
+            exe = args.orac_dir+'/derived_products/broadband_fluxes/process_broadband_fluxes'
+            
+        
+        cmd =exe + ' ' + files[0] + ' ' +files[1] + ' ' + files[2]+ ' ' + args.tsi+ ' ' +args.target + \
+                  ' ' + str(args.flux_alg)  + ' 0 0 0 0'
+        if args.cci_aerpix:
+            cmd += " cci_aerpix=" + files[0]
+        if args.surface_to_process:
+            cmd += " surface_to_process=" + str(args.surface_to_process)
+        if args.verbose:
+            cmd += " verbose=" + str(1)
+        if args.procs:
+            os.environ['OMP_NUM_THREADS'] = str(args.procs)
+        if not args.batch:
+            try:
+                os.system(cmd)
+                jid = None
+            except CalledProcessError as err:
+                raise OracError('{:s} failed with error code {:d}. {}'.format(
+                    ' '.join(err.cmd), err.returncode, err.output
+                ))
+    
+        else:
+            # Write temporary script to call executable
+            (gd, script_file) = tempfile.mkstemp('.sh', os.path.basename(exe)+'.',
+                                             args.out_dir, True)
+            g = os.fdopen(gd, "w")
+            g.write("#!/bin/bash\n")
+            # Define processing environment
+            libs = read_orac_library_file(args.orac_lib)
+            g.write("export LD_LIBRARY_PATH=" +
+                              build_orac_library_path(libs) + "\n")
+            g.write("export OPENBLAS_NUM_THREADS=1\n")
+            try:
+                g.write("export PPDIR=" + args.emos_dir + "\n")
+            except AttributeError:
+                pass
+            defaults.BATCH.add_openmp_to_script(g)
+            
+            g.write(cmd+"\n")
+            g.write("rm -f "+script_file+"\n")
+            g.close()
+            os.chmod(script_file, 0o700)
+    
+            try:
+                # Collect batch settings from defaults, command line, and script
+                batch_params = defaults.BATCH_VALUES.copy()
+                batch_params['job_name'] = job_name
+                batch_params['log_file'] = os.path.join(log_path, job_name + '.log')
+                batch_params['err_file'] = os.path.join(log_path, job_name + '.err')
+                batch_params['procs'] = 1
+                if 'ram' in defaults.BATCH_VALUES:
+                    batch_params['ram'] = defaults.BATCH_VALUES['ram'][4]
+                else:
+                    batch_params['ram'] = args.ram[4]
+                if 'duration' in defaults.BATCH_VALUES:
+                    batch_params['duration'] = defaults.BATCH_VALUES['duration'][4]
+                else:
+                    batch_params['duration'] = args.dur[4]
+                if dependency is not None:
+                    batch_params['depend'] = dependency
+                batch_params.update({key: val for key, val in args.batch_settings})
+    
+                #batch_params['procs'] = args.procs
+                # Form batch queue command and call batch queuing system
+                cmd = defaults.BATCH.list_batch(batch_params, exe=script_file)
+                out = check_output(cmd, universal_newlines=True)
+    
+                # Parse job ID # and return it to the caller
+                jid = defaults.BATCH.parse_out(out, 'ID')
+            except CalledProcessError as err:
+                raise defin.OracError('Failed to queue job ' + exe)
+            except SyntaxError as err:
+                raise defin.OracError(str(err))
+    
+    else:
+        jid = None
+
+    return jid, out_file
+
+
+def process_sisem_post(args, log_path, files=None, dependency=None, tag='sisem'):
+    final_vars = ['time','lat','lon',
+                  'boa_swdn_tot','boa_par_tot',
+                  'boa_par_dif','boa_swdn_dif','stemp']
+    job_name = args.File.job_name(args.revision, tag)
+    root_name = args.File.root_name(args.revision)
+    if files is None:
+        # Find all primary files of requested phases in given input folders.
+        files = glob(os.path.join(
+                    args.out_dir, root_name + '.bugsrad.nc'))
+    exe = args.orac_dir+'/tools/pyorac/sisem_postproc.py'
+    cmd = 'python ' + exe + ' ' \
+              + '--msi_root=' + root_name +' '+'--bugsradfile='+files[0]
+    
+    out_file = os.path.join(
+        args.out_dir, '.'.join(filter(
+            None, (root_name, 'sisem', 'nc'))))
+    if not args.batch:
+        try:
+            os.system(cmd)
+            jid = None
+        except CalledProcessError as err:
+            raise defin.OracError('{:s} failed with error code {:d}. {}'.format(
+                ' '.join(err.cmd), err.returncode, err.output
+            ))
+    else:
+        # Collect batch settings from defaults, command line, and script
+        batch_params = defaults.BATCH_VALUES.copy()
+        batch_params['job_name'] = job_name
+        batch_params['log_file'] = os.path.join(log_path, job_name + '.log')
+        batch_params['err_file'] = os.path.join(log_path, job_name + '.err')
+        batch_params['procs'] = 1
+        if 'ram' in defaults.BATCH_VALUES:
+            batch_params['ram'] = defaults.BATCH_VALUES['ram'][5]
+        else:
+            batch_params['ram'] = args.ram[5]
+        if 'duration' in defaults.BATCH_VALUES:
+            batch_params['duration'] = defaults.BATCH_VALUES['duration'][5]
+        else:
+            batch_params['duration'] = args.dur[5]
+        if dependency is not None:
+                    batch_params['depend'] = dependency    
+        batch_params.update({key: val for key, val in args.batch_settings})
+        # Write temporary script to call executable
+        
+        (gd, script_file) = tempfile.mkstemp('.sh', os.path.basename(exe)+'.',
+                                             args.out_dir, True)
+        g = os.fdopen(gd, "w")
+        g.write("#!/bin/bash\n")
+        # Define processing environment
+        libs = read_orac_library_file(args.orac_lib)
+        g.write("source /home/users/$USER/miniforge3/bin/activate\n")
+        g.write("conda activate sev_ml_tf\n")
+        g.write("export LD_LIBRARY_PATH=" +
+                              build_orac_library_path(libs) + "\n")
+        g.write("export OPENBLAS_NUM_THREADS=1\n")
+        defaults.BATCH.add_openmp_to_script(g) 
+        g.write(cmd+"\n")
+        g.write("rm -f "+script_file+"\n")
+        g.close()
+        os.chmod(script_file, 0o700)
+        cmd = defaults.BATCH.list_batch(batch_params, exe=script_file)
+        if args.verbose or args.script_verbose:
+                    colour_print(' '.join(cmd), defin.COLOURING['header'])
+        out = check_output(cmd, universal_newlines=True)
+        # Parse job ID # and return it to the caller
+        jid = defaults.BATCH.parse_out(out, 'ID')
     return jid, out_file
 
 
