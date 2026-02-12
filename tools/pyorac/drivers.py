@@ -15,7 +15,7 @@ def build_preproc_driver(args):
     from re import search
     from subprocess import CalledProcessError, check_output, STDOUT
     from uuid import uuid4
-    from pyorac.definitions import BadValue
+    from pyorac.local_defaults import GLOBAL_ATTRIBUTES
     from pyorac.util import (build_orac_library_path, extract_orac_libraries,
                              read_orac_library_file)
 
@@ -57,10 +57,10 @@ def build_preproc_driver(args):
         for ver in (61, 6, 5):
             try:
                 alb = _date_back_search(args.mcd43c3_dir, args.File.time,
-                                        f'MCD43C3.A%Y%j.{ver:03d}.*.hdf', 'days')
+                                        f'%Y/MCD43C3.A%Y%j.{ver:03d}.*.hdf', 'days')
                 brdf = None if args.lambertian else _date_back_search(
                     args.mcd43c1_dir, args.File.time,
-                    f'MCD43C1.A%Y%j.{ver:03d}.*.hdf', 'days'
+                    f'%Y/MCD43C1.A%Y%j.{ver:03d}.*.hdf', 'days'
                 )
                 break
             except FileMissing:
@@ -80,53 +80,32 @@ def build_preproc_driver(args):
             args.emis_dir, args.File.time,
             'global_emis_inf10_monthFilled_MYD11C3.A%Y%j.*nc', 'days'
         )
-
-    # Select ECMWF files
-    bounds = _bound_time(args.File.time + args.File.dur // 2)
-    if args.nwp_flag == 0:
-        ecmwf_nlevels = 91
-        raise NotImplementedError('Filename syntax for --nwp_flag 0 unknown')
-    elif args.nwp_flag == 4:
-        ecmwf_nlevels = 60
-        ggam = _form_bound_filenames(bounds, args.ggam_dir, 'ggam%Y%m%d%H%M.grb')
-        ggas = _form_bound_filenames(bounds, args.ggas_dir, 'ggas%Y%m%d%H%M.nc')
-        spam = _form_bound_filenames(bounds, args.spam_dir, 'spam%Y%m%d%H%M.grb')
-    elif args.nwp_flag == 3:
-        ecmwf_nlevels = 60
-        raise NotImplementedError('Filename syntax for --nwp_flag 3 unknown')
-    elif args.nwp_flag == 1:
-        ecmwf_nlevels = 137
-        for form, ec_hour in (('C3D*%m%d%H*.nc', 3),
-                              ('ECMWF_OPER_%Y%m%d_%H+00.nc', 6),
-                              ('ECMWF_ERA5_%Y%m%d_%H_0.5.nc', 6),
-                              ('ECMWF_ERA_%Y%m%d_%H_0.5.nc', 6),
-                              ('ECMWF_ERA_%Y%m%d_%H+00_0.5.nc', 6)):
+    
+    if GLOBAL_ATTRIBUTES['project'] == 'SISEM':
+        try:
+            args.nwp_flag = 1
+            ggam, ggas, spam, ecmwf_nlevels, jid = _pick_met_input(args)
+        except:
+            args.nwp_flag = 5
             try:
-                bounds = _bound_time(args.File.time + args.File.dur // 2, ec_hour)
-                ggam = _form_bound_filenames(bounds, args.ecmwf_dir, form)
-                break
-            except FileMissing as tmp_err:
-                err = tmp_err
-        else:
-            raise err
-
-        ggas = ["", ""]
-        spam = ["", ""]
-    elif args.nwp_flag == 2:
-        ecmwf_nlevels = 137
-        # Interpolation is done in the code
-        ggam = [args.ecmwf_dir, args.ecmwf_dir]
-        ggas = ["", ""]
-        spam = ["", ""]
+                ggam, ggas, spam, ecmwf_nlevels = _pick_met_input(args)
+            except:
+                args.nwp_flag = 0
+                try:
+                    ggam, ggas, spam, ecmwf_nlevels = _pick_met_input(args)
+                except:
+                    print('No NRT meteorological data was found.')
+                    print('Aborting run')
+                    raise FileNotFoundError
     else:
-        raise BadValue('nwp_flag', args.nwp_flag)
+        ggam, ggas, spam, ecmwf_nlevels = _pick_met_input(args)
 
     if args.use_oc:
-        for oc_version in (5.0, 4.2, 4.1, 4.0, 3.1, 3.0, 2.0, 1.0):
+        for oc_version in (6.0, 5.0, 4.2, 4.1, 4.0, 3.1, 3.0, 2.0, 1.0):
             try:
                 occci = _date_back_search(
                     args.occci_dir, args.File.time,
-                    'ESACCI-OC-L3S-IOP-MERGED-1M_MONTHLY'
+                    'ESACCI-OC-L3S-OC_PRODUCTS-MERGED-1M_MONTHLY'
                     f'_4km_GEO_PML_OCx_QAA-%Y%m-fv{oc_version:.1f}.nc',
                     'years'
                 )
@@ -312,17 +291,29 @@ USE_SWANSEA_CLIMATOLOGY={args.swansea}"""
     for sec, key, val in args.additional:
         if sec == "pre":
             driver += f"\n{key}={val}"
-
     if args.File.predef and not args.no_predef:
-        driver += f"""\nUSE_PREDEF_LSM=False
-EXT_LSM_PATH={args.prelsm_file}
-USE_PREDEF_GEO=False
-EXT_GEO_PATH={args.pregeo_file}"""
+        if args.ext_lsm_path:
+            driver += f"\nUSE_PREDEF_LSM=True"
+            driver += f"\nEXT_LSM_PATH={args.ext_lsm_path}"
+        else:
+            driver += f"\nUSE_PREDEF_LSM=True"
+            driver += f"\nEXT_LSM_PATH={args.prelsm_file}"
+        if args.ext_geo_path:
+            driver += f"\nUSE_PREDEF_GEO=True"
+            driver += f"\nEXT_GEO_PATH={args.ext_geo_path}"
+        else:
+            driver += f"\nUSE_PREDEF_GEO=True"
+            driver += f"\nEXT_GEO_PATH={args.pregeo_file}"
 
     if args.product_name is not None:
         driver += f"\nPRODUCT_NAME={args.product_name}"
 
-    return driver
+    if args.USE_SEVIRI_ANN_CMA_CPH:
+        driver += "\nUSE_SEVIRI_ANN_CMA_CPH=True"
+
+    if args.USE_ECMWF_PREPROC_GRID:
+        driver += "\nUSE_ECMWF_PREPROC_GRID=True"
+    return driver, jid
 
 
 def build_main_driver(args):
@@ -330,10 +321,11 @@ def build_main_driver(args):
     from pyorac.local_defaults import LUT_LOOKUP
     from pyorac.processing_settings import APRIORI_LOOKUP
 
-    # Evaluate requested LUT path and name for this instrument
-    sad_dir, sad_file, particle, prior = LUT_LOOKUP[args.lut_name](args.File, True)
-    if not os.path.isdir(sad_dir):
-        raise FileMissing('LUT directory', sad_dir)
+    if args.phase == 'None':
+        # Evaluate requested LUT path and name for this instrument
+        sad_dir, sad_file, particle, prior = LUT_LOOKUP[args.lut_name](args.File, True)
+        if not os.path.isdir(sad_dir):
+            raise FileMissing('LUT directory', sad_dir)
 
     # Form mandatory driver file lines
     driver = """# ORAC New Driver File
@@ -344,7 +336,6 @@ Ctrl%FID%SAD_Dir            = "{sad_dir}"
 Ctrl%InstName               = "{sensor}"
 Ctrl%Ind%NAvail             = {nch}
 Ctrl%Ind%Channel_Proc_Flag  = {channels}
-Ctrl%LUTClass               = "{particle}"
 Ctrl%Process_Cloudy_Only    = {cloudy}
 Ctrl%Process_Aerosol_Only   = {aerosoly}
 Ctrl%Verbose                = {verbose}
@@ -357,24 +348,30 @@ Ctrl%RS%Use_Full_BRDF       = {use_brdf}""".format(
         in_dir=args.in_dir[0],
         nch=len(args.available_channels),
         out_dir=args.out_dir,
-        particle=particle,
         sad_dir=sad_dir,
         sensor=args.File.sensor + '-' + args.File.platform,
         use_brdf=not (args.lambertian or args.approach == 'AppAerSw'),
         verbose=args.verbose,
     )
-    # If a netcdf LUT is being used then write NCDF LUT filename
-    if sad_file is not None:
-        if not os.path.isfile(os.path.join(sad_dir, sad_file)):
-            raise FileMissing('LUT file', os.path.join(sad_dir, sad_file))
-        driver += f"\nCtrl%FID%NCDF_LUT_Filename = \"{sad_file}\""
+    if args.phase == 'None':
+        driver += '\nCtrl%LUTClass     = "'+args.lut_name+'"'
+        # If a netcdf LUT is being used then write NCDF LUT filename
+        if sad_file is not None:
+            if not os.path.isfile(os.path.join(sad_dir, sad_file)):
+                raise FileMissing('LUT file', os.path.join(sad_dir, sad_file))
+            driver += f"\nCtrl%FID%NCDF_LUT_Filename = \"{sad_file}\""
 
-    for state_index, priors in APRIORI_LOOKUP[prior].items():
-        for variable_name, value in priors.items():
-            driver += _format_driver_line(variable_name, state_index, value)
-
+        for state_index, priors in APRIORI_LOOKUP[prior].items():
+            for variable_name, value in priors.items():
+                driver += _format_driver_line(variable_name, state_index, value)
+    elif args.phase != 'CDF':
+        driver += '\nCtrl%LUTClass              = "'+args.phase+'"'
+        phskey = [key for key in defaults.PHASE_SETTINGS.keys() if key.lower() in args.phase.lower()]
+        for var in defaults.PHASE_SETTINGS[phskey[0]].inv:
+            driver += var.driver()
+    
     # Optional driver file lines
-    if args.multilayer is not None:
+    if args.multilayer is not None and args.phase == 'None':
         sad_dir2, sad_file2, particle2, prior2 = LUT_LOOKUP[args.multilayer[0]](args.File, False)
         if not os.path.isdir(sad_dir2):
             raise FileMissing('LUT2 directory', sad_dir2)
@@ -394,6 +391,9 @@ Ctrl%RS%Use_Full_BRDF       = {use_brdf}""".format(
                 state_index += '2'
             for variable_name, value in priors.items():
                 driver += _format_driver_line(variable_name, state_index, value)
+    if args.multilayer is not None and args.phase == 'CDF':
+        raise OracError('Cannot use multilayer with old LUT files, please use updated nc LUT files')
+
     if args.types:
         driver += "\nCtrl%NTypes_To_Process      = {:d}".format(len(args.types))
         driver += ("\nCtrl%Types_To_Process(1:{:d}) = ".format(len(args.types)) +
@@ -489,6 +489,142 @@ USE_BAYESIAN_SELECTION={bayesian}""".format(
 
 # -----------------------------------------------------------------------------
 
+def _pick_met_input(args):
+    from pyorac.definitions import BadValue
+    if args.nwp_flag == 1:
+        from pyorac.run import pre_process_ecmwf_grib
+        # Check for updated ECMWF forecast data for the current timeslot
+        # Set-up ECMWF paths (both for raw forecast files and netcdf versions)
+        ecmwf_in_2=args.ecmwf_grb_dir.replace('C1', 'C2')
+        # If we're on, or after, the final ECMWF timestep of the day, we'll
+        # also need the first time step of the following day
+        # Calculate the following day's date now, so we can be sure we have
+        # the output directory
+        t1 = args.File.time
+        t2 = t1 + timedelta(days=1)
+        yr2  = str(t2.year)
+        mth2 = str(t2.month).zfill(2)
+        day2 = str(t2.day).zfill(2)
+        ecsdir='/'+str(t1.year)+'/'+str(t1.month).zfill(2)+'/'+str(t1.day).zfill(2)
+        ecsdir2='/'+yr2+'/'+mth2+'/'+day2
+        if not os.access(args.ecmwf_dir+ecsdir, os.F_OK):
+            os.makedirs(args.ecmwf_dir+ecsdir)
+        if not os.access(args.ecmwf_dir+ecsdir2, os.F_OK):
+            os.makedirs(args.ecmwf_dir+ecsdir2)
+        jid=None
+        ecmwf_nlevels = 137
+        for form, ec_hour in (('/%Y/%m/%d/A5[S,D]*%m%d%H*.nc', 1),
+                              ('/%Y/%m/%d/C[1,3]D[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%m%d%H[0-9][0-9][0-9].nc', 3),
+                              ('ECMWF_OPER_%Y%m%d_%H+00.nc', 6),
+                              ('ECMWF_ERA5_%Y%m%d_%H_0.5.nc', 6),
+                              ('ECMWF_ERA_%Y%m%d_%H_0.5.nc', 6),
+                              ('ECMWF_ERA_%Y%m%d_%H+00_0.5.nc', 6)):
+            try:
+                bounds = _bound_time(args.File.time + args.File.dur // 2, ec_hour)
+                ggam = _form_bound_filenames(bounds, args.ecmwf_dir, form)
+                target_size = 5544362904  # Target size in bytes
+                tolerance = 500
+                for file in ggam:
+                    if os.path.exists(file):
+                        # Get the size of the file
+                        file_size = os.path.getsize(file)
+                        # Check if the size is within the allowable range
+                        if target_size - tolerance <= file_size <= target_size + tolerance:
+                            print(f"{file} (size: {file_size} bytes, seems to not be truncated/corrupted.")
+                            file_valid=True
+                            ggas = ["", ""]
+                            spam = ["", ""]
+                        else:
+                            print(f"Deleting {file} (size: {file_size} bytes, outside allowable range).")
+                            os.remove(file) 
+                            file_valid=False
+                            continue
+                    else:
+                        print(f'{file} does not exist yet')
+                        file_valid=False
+                        continue
+                if file_valid:
+                    break
+            except FileMissing as tmp_err:
+                err = tmp_err
+        else:
+            ### NEED TO BE ABLE TO RUN AS A BATCH JOB
+            jid, ecm_path = pre_process_ecmwf_grib(str(t1.year), str(t1.month).zfill(2), 
+                                      str(t1.day).zfill(2), str(t1.hour).zfill(2), 
+                                      args.ecmwf_dir, args.ecmwf_grb_dir, args)
+            if args.batch:
+                if len(ecm_path) <2:
+                    bounds = _bound_time(args.File.time + args.File.dur // 2, 3)
+                    ggam = [f for time in bounds for f in glob(args.ecmwf_dir + time.strftime('/%Y/%m/%d/C[1,3]D[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%m%d%H[0-9][0-9][0-9].nc'))]
+                    if len(ggam) <2:
+                        if len(ggam)==1:
+                            ggam = ggam + ecm_path
+                            ggam.sort()
+                else:
+                    ggam = ecm_path
+            else:
+                bounds = _bound_time(args.File.time + args.File.dur // 2, 3)
+                ggam = _form_bound_filenames(bounds, args.ecmwf_dir, '/%Y/%m/%d/C[1,3]D[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%m%d%H[0-9][0-9][0-9].nc')
+            ggas = ["", ""]
+            spam = ["", ""]
+        return ggam, ggas, spam, ecmwf_nlevels, jid
+    elif args.nwp_flag == 2:
+        args.ecmwf_dir = args.era5_dir
+        bounds = _bound_time(args.File.time + args.File.dur // 2) 
+        ecmwf_nlevels = 137
+        if not os.path.exists(args.ecmwf_dir +'/'+ 
+                            str(args.File.time.year) +'/'+ 
+                            str(args.File.time.month) +'/'+ 
+                            str(args.File.time.day)):
+            args.ecmwf_dir = args.era5t_dir
+        # Interpolation is done in the code
+        ggam = [args.ecmwf_dir, args.ecmwf_dir]
+        ggas = ["", ""]
+        spam = ["", ""]
+        return ggam, ggas, spam, ecmwf_nlevels
+    elif args.nwp_flag == 3:
+        ecmwf_nlevels = 60
+        raise NotImplementedError('Filename syntax for --nwp_flag 3 unknown')
+    elif args.nwp_flag == '4':
+        bounds = _bound_time(args.File.time + args.File.dur // 2) 
+        ecmwf_nlevels = 60
+        if args.File.time > datetime.strptime('2019/08/31', "%Y/%m/%d"):
+            nwp_flag = 2
+            ggam = [args.era5_dir, args.era5_dir]
+            ggas = ["", ""]
+            spam = ["", ""]
+        else:
+            ggam = _form_bound_filenames(bounds, args.ggam_dir, '/%Y/%m/%d/ggam%Y%m%d%H%M.grb')
+            ggas = _form_bound_filenames(bounds, args.ggas_dir, '/%Y/%m/%d/ggas%Y%m%d%H%M.nc')
+            spam = _form_bound_filenames(bounds, args.spam_dir, '/%Y/%m/%d/spam%Y%m%d%H%M.grb')
+        return ggam, ggas, spam, ecmwf_nlevels
+    elif args.nwp_flag == 5:
+        ecmwf_nlevels = 137
+        bounds = _bound_time(args.File.time + args.File.dur//2,
+                            3)
+        nhour1, fhour1 = _nearest_hour_and_timedelta(str(args.nwp_flag), bounds[0].hour)
+        nhour2, fhour2 = _nearest_hour_and_timedelta(str(args.nwp_flag), bounds[1].hour)
+        ggam = _form_bound_filenames(bounds, args.cams_dir, '{:%Y/%m/%d}/CAMS_forecast_{:%Y-%m-%d}T{nhour}:00+{fhour}h.nc', 
+                                    nhours=[nhour1,nhour2], fhours=[fhour1, fhour2], nwp_flag=args.nwp_flag)
+        ggas = ggam
+        spam = ggam
+        return ggam, ggas, spam, ecmwf_nlevels
+    elif args.nwp_flag ==0:
+        ecmwf_nlevels = 137
+        bounds = _bound_time(args.File.time + args.File.dur//2,
+                            3)
+        nhour1, fhour1 = _nearest_hour_and_timedelta(str(args.nwp_flag), bounds[0].hour)
+        nhour2, fhour2 = _nearest_hour_and_timedelta(str(args.nwp_flag), bounds[1].hour)
+        ggam = _form_bound_filenames(bounds, args.gfs_dir, '{:%Y/%m/%d}/gfs.{:%Y%m%d}.{nhour}.f0{fhour}.grib2', 
+                                    nhours=[nhour1,nhour2], fhours=[fhour1, fhour2], nwp_flag=args.nwp_flag)
+        ggam = ggam
+        ggas = ggam
+        spam = ggam
+        return ggam, ggas, spam, ecmwf_nlevels
+    else:
+        raise BadValue('nwp_flag', args.nwp_flag)
+
+
 def _bound_time(date=None, delta_hours=6):
     """Return timestamps divisible by some duration that bound a given time
 
@@ -515,6 +651,20 @@ def _bound_time(date=None, delta_hours=6):
     # Output floor and ceil of time
     return start, start + date_delta
 
+def _nearest_hour_and_timedelta(nwp_flag, hour):
+    # Define the zero-padded reference hours
+    if nwp_flag == '0':
+        reference_hours = [0, 6, 12, 18]
+    elif nwp_flag == '5':
+        reference_hours = [0, 12]
+    
+    # Find the nearest smaller hour
+    nearest_smaller_hour = max(h for h in reference_hours if h <= hour)
+    
+    # Calculate the timedelta
+    time_difference = hour - nearest_smaller_hour
+    
+    return f"{nearest_smaller_hour:02}", time_difference
 
 def _date_back_search(fdr, date_in, pattern, interval):
     """Search a folder for the file with timestamp closest before a given date.
@@ -555,7 +705,8 @@ def _date_back_search(fdr, date_in, pattern, interval):
         raise FileMissing(fdr, pattern)
 
 
-def _form_bound_filenames(bounds, fdr, form):
+def _form_bound_filenames(bounds, fdr, form,
+                          nhours=None, fhours=None, nwp_flag=None):
     """Form 2-element lists of filenames from bounding timestamps.
 
     Args:
@@ -563,15 +714,81 @@ def _form_bound_filenames(bounds, fdr, form):
     :str fdr: Folder containing BADC files.
     :str form: Formatting string for strftime"""
 
-    out = [time.strftime(os.path.join(fdr, form)) for time in bounds]
+    if nhours is None and fhours is None:
+        if type(bounds) == tuple:
+            out = [fdr + time.strftime(form) for time in bounds]
+            for i in range(len(out)):
+                f2 = glob(out[i])
+                if len(f2) == 0:
+                    raise FileMissing('ECMWF file', out[i])
+                else:
+                    out[i] = f2[len(f2)-1]
+            return out
+        else:
+            out = fdr + bounds.strftime(form)
+            f2 = glob(out)
+            if len(f2) == 0:
+                raise FileMissing('ECMWF file missing', out)
+            else:
+                out = f2
+            return out
 
-    for i, path in enumerate(out):
-        filename = glob(path)
-        try:
-            out[i] = filename[-1]
-        except IndexError:
-            raise FileMissing('ECMWF file', path)
-    return out
+        
+    else:
+        if nwp_flag == 5:
+            filenames = [
+                form.format(dt, dt, nhour=str(nh).zfill(2), fhour=str(fh).zfill(2))
+                for dt, nh, fh in zip(bounds, nhours, fhours)
+            ]
+            out = [os.path.join(fdr, f) for f in filenames]
+            for i in range(len(out)):
+                file_candidates = glob(out[i])
+                if not file_candidates:
+                    # File not found, fallback to the previous day
+                    fallback_time = bounds[i] - timedelta(hours=12) - timedelta(hours=int(fhours[i]))
+                    fallback_nhour = f"{(fallback_time.hour // 12) * 12:02}" 
+                    fallback_fhour = (bounds[i] - fallback_time).seconds // 3600  
+                    fallback_file = os.path.join(fdr, form.format(fallback_time, fallback_time, nhour=str(fallback_nhour).zfill(2), fhour=str(fallback_fhour).zfill(2)))
+                    # Check if the fallback file exists
+                    fallback_candidates = glob(fallback_file)
+                    if not fallback_candidates:
+                        raise FileMissing('Forecast file', fallback_file)
+                    else:
+                        file_candidates = fallback_candidates
+                else:
+                    continue
+                if len(file_candidates) == 0:
+                    raise FileMissing('ECMWF file', out[i])
+                else:
+                    out[i] = file_candidates[len(file_candidates)-1]
+            return out
+        elif nwp_flag == 0:
+            filenames = [
+                form.format(dt, dt, nhour=str(nh).zfill(2), fhour=str(fh).zfill(2))
+                for dt, nh, fh in zip(bounds, nhours, fhours)
+            ]
+            out = [os.path.join(fdr, f) for f in filenames]
+            for i in range(len(out)):
+                file_candidates = glob(out[i])
+                if not file_candidates:
+                    # File not found, fallback to the previous day
+                    fallback_time = bounds[i] - timedelta(hours=6) - timedelta(hours=int(fhours[i]))
+                    fallback_nhour = f"{(fallback_time.hour // 6) * 6:02}" 
+                    fallback_fhour = (bounds[i] - fallback_time).seconds // 3600  
+                    fallback_file = os.path.join(fdr, form.format(fallback_time, fallback_time, nhour=str(fallback_nhour).zfill(2), fhour=str(fallback_fhour).zfill(2)))
+                    # Check if the fallback file exists
+                    fallback_candidates = glob(fallback_file)
+                    if not fallback_candidates:
+                        raise FileMissing('Forecast file', fallback_file)
+                    else:
+                        file_candidates = fallback_candidates
+                else:
+                    continue
+                if len(file_candidates) == 0:
+                    raise FileMissing('ECMWF file', out[i])
+                else:
+                    out[i] = file_candidates[len(file_candidates)-1]
+            return out
 
 
 def _format_driver_line(variable_name, index, value):
