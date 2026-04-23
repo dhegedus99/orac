@@ -110,6 +110,7 @@ def read_sat_data(fname, sensor = 'fci',
         channels = [channel for n, channel in enumerate(channels) if n+1 in use_channels] # We assume that use_channels is a list of integers using 1-indexing
         channel_ids = tuple(use_channels)
     os.system('echo "### $(date -u) ### Loading channels..."')
+    print(channels)
     sat_data.load(channels)
     sat_data_original = sat_data
     # Sort the channels to be in the correct order by central wavelength
@@ -216,6 +217,7 @@ def read_sat_data(fname, sensor = 'fci',
         for channel 
         in channels
     ]
+    print(channel_dim)
     all_channel_dim = supported_sensors[sensor]['central_wvl']
     if not use_channels:
         channel_ids = tuple([_ + 1 for _ in range(len(channels))])
@@ -407,7 +409,7 @@ def write_orac_compatible_file(base_dir, nc_file):
     # use format <platform>-<instrument>-<YYYYmmddTHHMMSS>.orac-compatible.nc
     if nc_file.sensor == 'FCI':
         out_fname = nc_file.platform + '-' + nc_file.sensor + '-' +\
-            ftime.strftime('%Y%m%d%H%M%S') + '.orac-compatible.nc'
+            ftime.strftime('%Y%m%d%H%M') + '00.orac-compatible.nc'
     elif nc_file.sensor == 'SEVIRI':
         out_fname = nc_file.platform + '-' + nc_file.sensor + '-' +\
             ftime.strftime('%Y%m%d%H%M') + '00.orac-compatible.nc'
