@@ -407,7 +407,7 @@ def write_orac_compatible_file(base_dir, nc_file):
     # use format <platform>-<instrument>-<YYYYmmddTHHMMSS>.orac-compatible.nc
     if nc_file.sensor == 'FCI':
         out_fname = nc_file.platform + '-' + nc_file.sensor + '-' +\
-            ftime.strftime('%Y%m%d%H%M%S') + '.orac-compatible.nc'
+            ftime.strftime('%Y%m%d%H%M') + '00.orac-compatible.nc'
     elif nc_file.sensor == 'SEVIRI':
         out_fname = nc_file.platform + '-' + nc_file.sensor + '-' +\
             ftime.strftime('%Y%m%d%H%M') + '00.orac-compatible.nc'
