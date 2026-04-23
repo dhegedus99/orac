@@ -1385,9 +1385,6 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, Fconfig, fname,
                              emis_bugsrad, rho_0d_bugsrad, rho_dd_bugsrad, pxYEAR,&
                              pxboaswdndif)
                   end if ! BUGSrad algorithm
-                  if (j .eq. 200) then 
-                  print*, LAT(i,j)
-                  end if
                   !----------------------------------------------------------------
                   ! Call FuLiou algorithm
                   !----------------------------------------------------------------
@@ -1518,20 +1515,15 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, Fconfig, fname,
    n_x = ixstop - ixstart + 1
    n_y = abs(iystop - iystart) + 1
    n_v = 1
-   write(*,*) trim(fname), ncid, ixstop-ixstart+1, &
-        abs(iystop-iystart)+1, n_v, dim3d_var, 1
    ! Create netcdf file
    call ncdf_create(trim(fname), ncid, ixstop-ixstart+1, &
         abs(iystop-iystart)+1, n_v, dim3d_var, 1, global_atts, source_atts)
-   write(*,*) ncid
    dims_var = dim3d_var(1:2)
-   write(*,*) ncid
    ! Need this to exit data mode to define variables
    if (nf90_redef(ncid) .ne. NF90_NOERR) then
       write(*,*) 'ERROR: nf90_redef()'
       stop error_stop_code
    end if
-   write(*,*) 'Started redef'
    !----------------------------------------------------------------------------
    ! time
    !----------------------------------------------------------------------------
@@ -2121,9 +2113,6 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, Fconfig, fname,
       write(*,*) 'ERROR: nf90_enddef()'
       stop error_stop_code
    end if
-   write(*,*) 'exit define'
-   write(*,*) size(time_data, dim=1), size(time_data, dim=2), ixstart,iystart, TIME_vid
-   write(*,*) n_x, n_y
    ! write the array to the netcdf file
    call ncdf_write_array(ncid,'time', TIME_vid,&
         time_data(ixstart:,iystart:), 1, 1, n_x, 1, 1, n_y)

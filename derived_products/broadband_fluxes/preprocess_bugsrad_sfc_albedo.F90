@@ -67,13 +67,13 @@ subroutine preprocess_bugsrad_sfc_albedo(nc_alb, nc_conf, rho_0d,rho_dd,&
    end if
    
    ! Check the nb. of mixed channels used for albedo 
-   write(*,*) 'nb. of mixed channels', &
-              (count(msi_ch_swflag/=0)) - (count(msi_ch_modisref>0))
+   !write(*,*) 'nb. of mixed channels', &
+   !           (count(msi_ch_swflag/=0)) - (count(msi_ch_modisref>0))
    
    ! Get the center location of each MODIS reference band for albedo
    ! if no mixed channels are used
    if (count(msi_ch_modisref>0) .eq. nc_alb) then
-      write(*,*) 'No mixed channels used for albedo'
+      !write(*,*) 'No mixed channels used for albedo'
       do l=1,nc_alb
          !if (msi_ch_modisref(l)>0) then
             modBand(l) = modBandall(int(msi_ch_modisref(l)))
@@ -83,8 +83,8 @@ subroutine preprocess_bugsrad_sfc_albedo(nc_alb, nc_conf, rho_0d,rho_dd,&
    ! sw channels with MODIS reference bands), we assume it comes from the 
    ! 3.7 mixed channel (see in preprocessing/get_surface_reflectance)
    else if (count(msi_ch_modisref>0) .eq. (nc_alb-1))  then
-      write(*,*) 'One additional mixed channel is used for albedo'
-      write(*,*) msi_ch_modisref, minloc(abs(msi_ch_modisref-0), dim=1)
+      !write(*,*) 'One additional mixed channel is used for albedo'
+      !write(*,*) msi_ch_modisref, minloc(abs(msi_ch_modisref-0), dim=1)
       firstmixedch = minloc(abs(msi_ch_modisref-0), dim=1)
       do l=1,firstmixedch-1!nc_alb-1
          modBand(l) = modBandall(int(msi_ch_modisref(l)))
