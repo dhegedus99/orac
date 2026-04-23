@@ -33,7 +33,7 @@ def args_common(parser):
                      help='Channels to be evaluated.')
     key.add_argument('--batch', action='store_true',
                      help='Use batch processing for this call.')
-    key.add_argument('--batch_script', default=defaults.batch_script,
+    key.add_argument('--batch_script', default=defaults.BATCH_SCRIPT,
                      help='Execution script to use in batch processing.')
     key.add_argument('-b', '--batch_settings', type=str, nargs=2, default=[],
                      metavar=('KEY', 'VALUE'), action='append',
@@ -501,7 +501,7 @@ def check_args_fluxes(args):
         raise FileMissing('Preprocessed directory', args.in_dir[0])
     
     if args.tsi is None:
-            args.tsi = '/gws/nopw/j04/nceo_generic/cloud_ecv/data_in/tsi_noaa_cdr_and_tsis_tim_1978-01-01_2022-07-16.nc'
+            args.tsi = '/gws/ssde/j25b/nceo_generic/cloud_ecv/data_in/tsi_noaa_cdr_and_tsis_tim_1978-01-01_2022-07-16.nc'
             
     if args.flux_alg is None:
             args.flux_alg = '1'
@@ -620,7 +620,7 @@ def check_args_fluxes(args):
         raise FileMissing('Preprocessed directory', args.in_dir[0])
     
     if args.tsi is None:
-            args.tsi = '/gws/nopw/j04/nceo_generic/cloud_ecv/data_in/tsi_noaa_cdr_and_tsis_tim_1978-01-01_2022-07-16.nc'
+            args.tsi = '/gws/ssde/j25b/nceo_generic/cloud_ecv/data_in/tsi_noaa_cdr_and_tsis_tim_1978-01-01_2022-07-16.nc'
             
     if args.flux_alg is None:
             args.flux_alg = '1'
