@@ -14,7 +14,17 @@ import psutil
 os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
 def runner(maxlvl,insurface,outfile):
     try:
-        if 'C1' in insurface:
+        if 'ami' in invars:
+            const_filename = invars.replace('ifs-ens-cf', 'ifs-da').replace('fc','an')[51:].split('_')
+            print(invars)
+            print(const_filename[:7], const_filename[6], '0h', const_filename[-1])
+            inconst =  invars[:40]+ const_filename[6][:4]+'/'+ const_filename[6][4:6]+'/'+const_filename[6][6:8]+'/'+'_'.join(const_filename[:7]+ [const_filename[6], '0h', const_filename[-1]])           
+        elif 'A5' in invars:
+            if invars[-17:-15] > invars[-9:-7]:
+                inconst = invars[0:-31]+ str(int(invars[-31:-27])-1)+ '/' +invars[-17:-15]+ '/' +  invars[-15:-13] + invars[-21:-9] + invars[-17:-15] + invars[-15:-11]+'001'
+            else:
+                inconst=invars[0:-26]+ invars[-17:-15]+ '/' +  invars[-15:-13] + invars[-21:-9] + invars[-17:-15] + invars[-15:-11]+'001'
+        elif 'C1' in insurface:
             inprofile=insurface.replace('C1','C2')
         elif 'C3' in insurface:
             inprofile=insurface.replace('C3','C4')

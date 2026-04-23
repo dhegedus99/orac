@@ -513,7 +513,8 @@ def _pick_met_input(args):
             os.makedirs(args.ecmwf_dir+ecsdir2)
         jid=None
         ecmwf_nlevels = 137
-        for form, ec_hour in (('/%Y/%m/%d/A5[S,D]*%m%d%H*.nc', 1),
+        for form, ec_hour in (('/%Y/%m/%d/ami_*Z_%Y%m%dT%H*.nc',1),
+                              ('/%Y/%m/%d/A5[S,D]*%m%d%H*.nc', 1),
                               ('/%Y/%m/%d/C[1,3]D[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%m%d%H[0-9][0-9][0-9].nc', 3),
                               ('ECMWF_OPER_%Y%m%d_%H+00.nc', 6),
                               ('ECMWF_ERA5_%Y%m%d_%H_0.5.nc', 6),
@@ -549,6 +550,7 @@ def _pick_met_input(args):
                 err = tmp_err
         else:
             ### NEED TO BE ABLE TO RUN AS A BATCH JOB
+            # NEED TO EDIT THIS TO WORK WITH THE AMI-A5 ECMWF data for SISEM BEFORE USING OPERATIONALLY
             jid, ecm_path = pre_process_ecmwf_grib(str(t1.year), str(t1.month).zfill(2), 
                                       str(t1.day).zfill(2), str(t1.hour).zfill(2), 
                                       args.ecmwf_dir, args.ecmwf_grb_dir, args)
