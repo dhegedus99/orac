@@ -110,6 +110,7 @@ def read_sat_data(fname, sensor = 'fci',
         channels = [channel for n, channel in enumerate(channels) if n+1 in use_channels] # We assume that use_channels is a list of integers using 1-indexing
         channel_ids = tuple(use_channels)
     os.system('echo "### $(date -u) ### Loading channels..."')
+    print(channels)
     sat_data.load(channels)
     sat_data_original = sat_data
     # Sort the channels to be in the correct order by central wavelength
@@ -216,6 +217,7 @@ def read_sat_data(fname, sensor = 'fci',
         for channel 
         in channels
     ]
+    print(channel_dim)
     all_channel_dim = supported_sensors[sensor]['central_wvl']
     if not use_channels:
         channel_ids = tuple([_ + 1 for _ in range(len(channels))])

@@ -309,6 +309,126 @@ def process_post(args, log_path, files=None, dependency=None, tag='post'):
 
 def process_flux(args, log_path, files=None, dependency=None, tag='flux'):
     """Call sequence for post processor"""
+    from glob import glob
+    from pyorac.definitions import FileMissing, SETTINGS
+    from pyorac.local_defaults import DIR_PERMISSIONS
+
+    args = check_args_fluxes(args)
+    job_name = args.File.job_name(args.revision, tag)
+    root_name = args.File.root_name(args.revision)
+
+    if not os.path.isdir(args.out_dir):
+        os.makedirs(args.out_dir, DIR_PERMISSIONS)
+
+    if files is None:
+        # Find all primary files of requested phases in given input folders.
+        files = []
+        for fdr in args.in_dir:
+            out_dir_pre = args.out_dir + '/pre'
+            files.extend(glob(os.path.join(
+                    args.out_dir, root_name + '.primary.nc'
+            )))
+            files.extend(glob(os.path.join(
+                    out_dir_pre, root_name + '.prtm.nc'
+            )))
+            files.extend(glob(os.path.join(
+                    out_dir_pre, root_name + '.alb.nc'
+            )))
+            files.extend(glob(os.path.join(
+                    out_dir_pre, root_name + '.config.nc'
+            )))
+
+    if len(files) < 4:
+        raise FileMissing('sufficient processed files', args.target)
+    out_file = os.path.join(
+        args.out_dir, '.'.join(filter(
+            None, (root_name, 'bugsrad', 'nc')
+        ))
+    )
+    
+    args.target = out_file
+    
+    if args.clobber >= CLOBBER['flux'] or not os.path.isfile(out_file):
+        
+        exe = os.path.join(args.orac_dir, '/derived_products/broadband_fluxes', 'process_broadband_fluxes')
+        if not os.path.isfile(exe):
+            exe = args.orac_dir+'/derived_products/broadband_fluxes/process_broadband_fluxes'
+            
+        
+        cmd =exe + ' ' + files[0] + ' ' +files[1] + ' ' + files[2]+ ' ' + args.tsi+ ' ' + files[3]+ ' ' +args.target + \
+                  ' ' + str(args.flux_alg)  + ' 0 0 0 0'
+    
+        if args.cci_aerpix:
+            cmd += "cci_aerpix= " + files[0]
+        
+        if not args.batch:
+            try:
+                os.system(cmd)
+                jid = None
+            except CalledProcessError as err:
+                raise OracError('{:s} failed with error code {:d}. {}'.format(
+                    ' '.join(err.cmd), err.returncode, err.output
+                ))
+    
+        else:
+            # Write temporary script to call executable
+            (gd, script_file) = tempfile.mkstemp('.sh', os.path.basename(exe)+'.',
+                                             args.out_dir, True)
+            g = os.fdopen(gd, "w")
+            g.write("#!/bin/bash\n")
+            # Define processing environment
+            libs = read_orac_library_file(args.orac_lib)
+            g.write("export LD_LIBRARY_PATH=" +
+                              build_orac_library_path(libs) + "\n")
+            g.write("export OPENBLAS_NUM_THREADS=1\n")
+            try:
+                g.write("export PPDIR=" + args.emos_dir + "\n")
+            except AttributeError:
+                pass
+            BATCH.add_openmp_to_script(g)
+            
+            g.write(cmd+"\n")
+            g.write("rm -f "+script_file+"\n")
+            g.close()
+            os.chmod(script_file, 0o700)
+    
+            try:
+                # Collect batch settings from defaults, command line, and script
+                batch_params = BATCH_VALUES.copy()
+                batch_params['job_name'] = job_name
+                batch_params['log_file'] = os.path.join(log_path, job_name + '.log')
+                batch_params['err_file'] = os.path.join(log_path, job_name + '.err')
+                batch_params['duration'] = '01:30:00'
+                batch_params['ram'] = '3G'
+                batch_params['procs'] = 1
+                if values:
+                    batch_params.update(values)
+                batch_params.update({key: val for key, val in args.batch_settings})
+    
+                batch_params['procs'] = args.procs
+    
+                # Form batch queue command and call batch queuing system
+                cmd = BATCH.list_batch(batch_params, exe=script_file)
+    
+                if args.verbose or args.script_verbose:
+                    colour_print(' '.join(cmd), COLOURING['header'])
+                out = check_output(cmd.split(' '), universal_newlines=True)
+    
+                # Parse job ID # and return it to the caller
+                jid = BATCH.parse_out(out, 'ID')
+            except CalledProcessError as err:
+                raise OracError('Failed to queue job ' + exe)
+            except SyntaxError as err:
+                raise OracError(str(err))
+            
+    
+    else:
+        jid = None
+
+    return jid, out_file
+
+def process_flux(args, log_path, files=None, dependency=None, tag='flux'):
+    """Call sequence for post processor"""
 
     args = oracarg.check_args_fluxes(args)
     job_name = args.File.job_name(args.revision, tag)
@@ -328,6 +448,9 @@ def process_flux(args, log_path, files=None, dependency=None, tag='flux'):
         files.extend(glob(os.path.join(
                     args.pre_dir, root_name + '.alb.nc'
         )))
+        files.extend(glob(os.path.join(
+                    out_dir_pre, root_name + '.config.nc'
+            )))
 
     if len(files) < 3:
         raise defin.FileMissing('sufficient processed files', args.target)
@@ -345,7 +468,7 @@ def process_flux(args, log_path, files=None, dependency=None, tag='flux'):
             exe = args.orac_dir+'/derived_products/broadband_fluxes/process_broadband_fluxes'
             
         
-        cmd =exe + ' ' + files[0] + ' ' +files[1] + ' ' + files[2]+ ' ' + args.tsi+ ' ' +args.target + \
+        cmd =exe + ' ' + files[0] + ' ' +files[1] + ' ' + files[2]+ ' ' + args.tsi+ ' ' + files[3]+ ' ' +args.target + \
                   ' ' + str(args.flux_alg)  + ' 0 0 0 0'
         if args.cci_aerpix:
             cmd += " cci_aerpix=" + files[0]
@@ -626,7 +749,6 @@ def run_regression(in_file):
     from warnings import warn
 
     regex = re.compile(r"_R(\d+)")
-
     this_revision = int(in_file.revision)
     for fdr in in_file.folders:
         for this_file in glob(os.path.join(

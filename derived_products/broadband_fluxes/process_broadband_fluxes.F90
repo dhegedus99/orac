@@ -149,8 +149,8 @@
 #ifndef WRAPPER
 program process_broadband_fluxes
 #else
-subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
-        FLXalgorithm, status, Faerosol, Fcollocation)
+subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, Fconfig, fname,&
+        FLXalgorithm, status, Faerosol, Fcollocation) 
 #endif
    use common_constants_m
    use global_attributes_m
@@ -162,11 +162,11 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
    implicit none
 
 #ifndef WRAPPER
-   character(path_length) :: Fprimary, FPRTM, FTSI, FALB, fname, FLXalgorithm, &
+   character(path_length) :: Fprimary, FPRTM, FTSI, FALB, Fconfig, fname, FLXalgorithm, &
                              Faerosol, Fcollocation
 #else
    integer :: status
-   character(file_length), intent(in) :: Fprimary, FPRTM, FTSI, FALB, fname, &
+   character(file_length), intent(in) :: Fprimary, FPRTM, FTSI, FALB, Fconfig, fname, &
                                          FLXalgorithm
    character(file_length), intent(inout), optional :: Faerosol, Fcollocation
 #endif
@@ -220,6 +220,11 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
    real, allocatable :: emis_abs_ch_numbers(:) ! Channels used in emissivity product
    integer(kind=lint) :: nc_alb
    integer(kind=lint) :: nc_emis
+   
+   ! Config file
+   real, allocatable :: msi_ch_swflag(:)       ! SW flag for instrument
+   real, allocatable :: msi_ch_modisref(:)     ! Modis albedo reference channels 
+   integer(kind=lint) :: nc_conf
 
    ! Primary file
    real, allocatable :: LAT(:,:)              ! Latitude Satellite (xp,yp)
@@ -475,16 +480,18 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
    call get_command_argument(2, FPRTM)
    call get_command_argument(3, FALB)
    call get_command_argument(4, FTSI)
-   call get_command_argument(5, fname)
+   call get_command_argument(5, Fconfig)
+   call get_command_argument(6, fname)
 #endif
    print*, 'primary file: ', trim(adjustl(Fprimary))
    print*, 'prtm file : ', trim(FPRTM)
    print*, 'albedo file: ', trim(FALB)
    print*, 'total solar irradiance file: ', trim(FTSI)
+   print*, 'config file: ', trim(Fconfig)
    print*, 'output file: ', trim(fname)
 
 #ifndef WRAPPER
-   call get_command_argument(6, FLXalgorithm)
+   call get_command_argument(7, FLXalgorithm)
 #endif
    read(flxAlgorithm,*) algorithm_processing_mode
    if (algorithm_processing_mode .eq. 1) then
@@ -504,10 +511,10 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
 #ifndef WRAPPER
    ! Maybe these should be subroutine arguments; if 0, all pixels will be
    ! processed
-   call get_command_argument(7, cpxX0)
-   call get_command_argument(8, cpxY0)
-   call get_command_argument(9, cpxX1)
-   call get_command_argument(10, cpxY1)
+   call get_command_argument(8, cpxX0)
+   call get_command_argument(9, cpxY0)
+   call get_command_argument(10, cpxX1)
+   call get_command_argument(11, cpxY1)
 #else
    ! Process all pixels if in Wrapper mode
    cpxX0 = "0"; cpxY0 = "0"; cpxX1 = "0"; cpxY1 = "0"
@@ -537,7 +544,7 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
    verbose=.false.
 #ifndef WRAPPER
    ! Set Faerosol, Fcollocation, FMOD04, FMOD06, InfThnCld, corrected_cth, FtoaSW
-   do i = 11, nargs
+   do i = 12, nargs
       call get_command_argument(i, argname)
       index1 = index(argname,'=', back=.true.)
       index2 = len_trim(argname)
@@ -869,6 +876,25 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
 
    !----------------------------------------------------------------------------
 
+   ! Open CONFIG file
+   call ncdf_open(ncid, Fconfig, 'process_broadband_fluxes()')
+   ! Get Channels
+   nc_conf = ncdf_dim_length(ncid, 'nc_conf', 'process_broadband_fluxes()')
+   
+   ! Allocate arrays
+   allocate(msi_ch_swflag(nc_conf))
+   allocate(msi_ch_modisref(nc_conf))
+
+
+   ! Read ALB data
+   call ncdf_read_array(ncid, "msi_ch_swflag", msi_ch_swflag)
+   call ncdf_read_array(ncid, "msi_ch_modisref", msi_ch_modisref)
+
+   ! Close file
+   call ncdf_close(ncid, 'process_broadband_fluxes(Fconfig)')
+
+   !----------------------------------------------------------------------------
+
    ! Open Aerosol CCI file (optional)
    if (aerosol_processing_mode .ge. 2) then
       call ncdf_open(ncid, Faerosol, 'process_broadband_fluxes()')
@@ -1034,7 +1060,7 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
             iystart = 1
             iystop = yN
             n_x = ixstop - ixstart + 1
-            n_y = iystop - iystart + 1
+            n_y = abs(iystop - iystart) + 1
             n_v = 1
             ! Create netcdf file
             call ncdf_create(trim(Fcollocation), ncid, ixstop-ixstart+1, &
@@ -1228,8 +1254,8 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
                !-------------------------------------------------------------------
                ! BugsRAD surface properties
                if (algorithm_processing_mode .eq. 1) then
-                  call preprocess_bugsrad_sfc_albedo(nc_alb, rho_0d(i,j,:), &
-                       rho_dd(i,j,:), rho_0d_bugsrad, rho_dd_bugsrad)
+                  call preprocess_bugsrad_sfc_albedo(nc_alb, nc_conf, rho_0d(i,j,:), &
+                       rho_dd(i,j,:), msi_ch_swflag(:), msi_ch_modisref(:), rho_0d_bugsrad, rho_dd_bugsrad)
                   call preprocess_bugsrad_sfc_emissivity(nc_emis, emis_data(i,j,:), &
                        emis_bugsrad)
                end if
@@ -1359,9 +1385,6 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
                              emis_bugsrad, rho_0d_bugsrad, rho_dd_bugsrad, pxYEAR,&
                              pxboaswdndif)
                   end if ! BUGSrad algorithm
-                  if (j .eq. 200) then 
-                  print*, LAT(i,j)
-                  end if
                   !----------------------------------------------------------------
                   ! Call FuLiou algorithm
                   !----------------------------------------------------------------
@@ -1478,32 +1501,29 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
    ! Make output NetCDF file
    !----------------------------------------------------------------------------
    call ncdf_open(ncid, Fprimary, 'process_broadband_fluxes()')
-
+   write(*,*) ncid
    ! Get common attributes from primary file
    call ncdf_get_common_attributes(ncid, global_atts, source_atts)
-
+   write(*,*) ncid
    call ncdf_close(ncid, 'process_broadband_fluxes()')
-
+   write(*,*) ncid
    ! Dimensions
    ixstart = pxX0
    ixstop  = pxX1
    iystart = pxY0
    iystop  = pxY1
    n_x = ixstop - ixstart + 1
-   n_y = iystop - iystart + 1
+   n_y = abs(iystop - iystart) + 1
    n_v = 1
-
    ! Create netcdf file
    call ncdf_create(trim(fname), ncid, ixstop-ixstart+1, &
-        iystop-iystart+1, n_v, dim3d_var, 1, global_atts, source_atts)
+        abs(iystop-iystart)+1, n_v, dim3d_var, 1, global_atts, source_atts)
    dims_var = dim3d_var(1:2)
-
    ! Need this to exit data mode to define variables
    if (nf90_redef(ncid) .ne. NF90_NOERR) then
       write(*,*) 'ERROR: nf90_redef()'
       stop error_stop_code
    end if
-
    !----------------------------------------------------------------------------
    ! time
    !----------------------------------------------------------------------------
@@ -1523,7 +1543,6 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
         units         = 'days since -4712-01-01 12:00:00', &
         deflate_level = deflate_lv, &
         shuffle       = shuffle_flag)
-
    !----------------------------------------------------------------------------
    ! latitude
    !----------------------------------------------------------------------------
@@ -2094,7 +2113,6 @@ subroutine process_broadband_fluxes(Fprimary, FPRTM, FALB, FTSI, fname,&
       write(*,*) 'ERROR: nf90_enddef()'
       stop error_stop_code
    end if
-
    ! write the array to the netcdf file
    call ncdf_write_array(ncid,'time', TIME_vid,&
         time_data(ixstart:,iystart:), 1, 1, n_x, 1, 1, n_y)
